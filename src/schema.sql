@@ -1,0 +1,36 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS Cities (
+  cityID INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Airport (
+  airportID INTEGER PRIMARY KEY AUTOINCREMENT,
+  cityID INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  FOREIGN KEY (cityID) REFERENCES Cities(cityID)
+);
+
+CREATE TABLE IF NOT EXISTS Plane (
+  planeID INTEGER PRIMARY KEY AUTOINCREMENT,
+  model TEXT NOT NULL,
+  speed INTEGER NOT NULL,
+  maxSeats INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Flight (
+  flightID INTEGER PRIMARY KEY AUTOINCREMENT,
+  planeID INTEGER NOT NULL,
+  originAirportID INTEGER NOT NULL,
+  destinationAirportID INTEGER NOT NULL,
+  airline TEXT NOT NULL,
+  gate TEXT NOT NULL,
+  passengerCount INTEGER NOT NULL,
+  departureTime TEXT NOT NULL,
+  FOREIGN KEY (planeID) REFERENCES Plane(planeID),
+  FOREIGN KEY (originAirportID) REFERENCES Airport(airportID),
+  FOREIGN KEY (destinationAirportID) REFERENCES Airport(airportID)
+);
