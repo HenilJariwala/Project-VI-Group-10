@@ -1,0 +1,8 @@
+services:
+  flight-logger:
+    build: .
+    container_name: flight-logger
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./runtime_db:/app/runtime_db
