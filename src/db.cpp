@@ -19,6 +19,46 @@ Db::~Db() {
     if (db_) sqlite3_close(db_);
 }
 
+// Return all flights
+crow::json::wvalue Db::getAllFlights() {
+    crow::json::wvalue flights;
+    sqlite3_stmt* stmt;
+
+    const char* sql = R"(
+        SELECT f.flightID, f.airline, f.gate, f.passengerCount, f.departureTime,
+               p.model,
+               oa.code, da.code,
+               oc.name, dc.name
+        FROM Flight f
+        JOIN Plane p ON f.planeID = p.planeID
+        JOIN Airport oa ON f.originAirportID = oa.airportID
+        JOIN Airport da ON f.destinationAirportID = da.airportID
+        JOIN Cities oc ON oa.cityID = oc.cityID
+        JOIN Cities dc ON da.cityID = dc.cityID
+        ORDER BY f.departureTime;
+    )";
+
+    sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+
+    int i = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        flights[i]["flightID"] = sqlite3_column_int(stmt, 0);
+        flights[i]["airline"] = (const char*)sqlite3_column_text(stmt, 1);
+        flights[i]["gate"] = (const char*)sqlite3_column_text(stmt, 2);
+        flights[i]["passengers"] = sqlite3_column_int(stmt, 3);
+        flights[i]["departureTime"] = (const char*)sqlite3_column_text(stmt, 4);
+        flights[i]["plane"] = (const char*)sqlite3_column_text(stmt, 5);
+        flights[i]["originCode"] = (const char*)sqlite3_column_text(stmt, 6);
+        flights[i]["destCode"] = (const char*)sqlite3_column_text(stmt, 7);
+        flights[i]["originCity"] = (const char*)sqlite3_column_text(stmt, 8);
+        flights[i]["destCity"] = (const char*)sqlite3_column_text(stmt, 9);
+        i++;
+    }
+
+    sqlite3_finalize(stmt);
+    return flights;
+}
+
 // Returns all Plane rows as a Crow JSON list of objects.
 crow::json::wvalue Db::getAllPlanes() {
     const char* sql = "SELECT planeID, model, speed, maxSeats FROM Plane ORDER BY model ASC;";

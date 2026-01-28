@@ -13,6 +13,9 @@ public:
     //seed baseline data if the tables are empty
     void seedIfEmpty(const std::string& seedPath);
 
+    // Flights
+    crow::json::wvalue getAllFlights();
+
     crow::json::wvalue getAllPlanes();
     crow::json::wvalue getAllAirports();
     int createFlight(int planeID, int originAirportID, int destinationAirportID,

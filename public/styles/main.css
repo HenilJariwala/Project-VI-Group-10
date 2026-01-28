@@ -48,3 +48,33 @@ code { background: #f3f4f6; padding: 2px 6px; border-radius: 6px; }
 label { display:block; margin: 10px 0; }
 input, select, button { padding: 8px; width: 100%; max-width: 520px; }
 button { width: auto; cursor: pointer; }
+
+
+// Flights 
+.flight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.flight-card {
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.flight-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.1em;
+}
+
+.status.ontime { color: green; }
+.status.boarding { color: orange; }
+.status.departed { color: gray; }
+
+.route {
+  margin: 8px 0;
+  font-weight: bold;
+}

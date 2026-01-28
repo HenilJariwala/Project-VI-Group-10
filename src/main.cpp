@@ -37,6 +37,13 @@ int main() {
         return res;
     });
 
+    CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::GET)
+    ([&db]{
+        crow::json::wvalue out;
+        out["flights"] = db.getAllFlights();
+        return crow::response{200, out};
+    });
+
     // pages routes
     CROW_ROUTE(app, "/pages/<string>")([](const std::string& file){
         return serveFile("/app/public/pages/" + file, "text/html; charset=utf-8");
