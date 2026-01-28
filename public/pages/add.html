@@ -22,9 +22,46 @@
 
   <main class="content">
     <div class="card">
-      <h2>Add Flight</h2>
-      <p class="hint">Placeholder page. Later this will use POST /flights.</p>
-    </div>
+  <h2>Add Flight</h2>
+  <p class="hint">Creates a flight using <code>POST /api/flights</code>.</p>
+
+  <form id="addFlightForm">
+    <label>Plane
+      <select id="planeID" required></select>
+    </label>
+
+    <label>Origin Airport
+      <select id="originAirportID" required></select>
+    </label>
+
+    <label>Destination Airport
+      <select id="destinationAirportID" required></select>
+    </label>
+
+    <label>Airline
+      <input id="airline" type="text" required />
+    </label>
+
+    <label>Gate
+      <input id="gate" type="text" required />
+    </label>
+
+    <label>Passengers
+      <input id="passengerCount" type="number" min="0" required />
+    </label>
+
+    <label>Departure Time (ISO 8601)
+      <input id="departureTime" type="datetime-local" required />
+    </label>
+
+    <button type="submit">Add Flight</button>
+  </form>
+
+  <p id="msg" class="hint"></p>
+</div>
+
+<script src="/scripts/add.js"></script>
+
   </main>
 </body>
 </html>

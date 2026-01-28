@@ -1,0 +1,9 @@
+# build outputs
+server
+*.o
+*.exe
+
+# runtime database f older
+runtime_db/
+*.db
+*.db-journal
