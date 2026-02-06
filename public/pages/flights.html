@@ -21,8 +21,33 @@
   </nav>
 
   <main class="content">
+  <div id="flightHeader" class="flight-header">
     <h2>All Flights</h2>
-    <div id="flightList" class="flight-grid"></div>
+
+    <div class="flight-controls">
+      <div class="top-row">
+        <div class="search-box">
+          <input id="flightSearch" placeholder="Search flights..." />
+          <div id="searchDropdown" class="search-dropdown"></div>
+        </div>
+        <input type="datetime-local" id="dateSearch" />
+      </div>
+
+      <div class="bottom-row">
+        <select id="sortSelect">
+          <option value="status">Status</option>
+          <option value="departure">Departure Time</option>
+          <option value="gate">Gate</option>
+        </select>
+
+        <button id="clearBtn">Clear</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="flightList"></div>
+
   </main>
 
   <script src="/scripts/flight.js"></script>

@@ -25,10 +25,25 @@ crow::json::wvalue Db::getAllFlights() {
     sqlite3_stmt* stmt;
 
     const char* sql = R"(
-        SELECT f.flightID, f.airline, f.gate, f.passengerCount, f.departureTime,
-               p.model,
-               oa.code, da.code,
-               oc.name, dc.name
+        SELECT
+        f.flightID,
+        f.airline,
+        f.gate,
+        f.passengerCount,
+        f.departureTime,
+        p.model AS planeModel,
+
+        oa.code AS originCode,
+        da.code AS destCode,
+
+        oc.name AS originCity,
+        dc.name AS destCity,
+
+        oc.latitude  AS originLat,
+        oc.longitude AS originLon,
+        dc.latitude  AS destLat,
+        dc.longitude AS destLon
+
         FROM Flight f
         JOIN Plane p ON f.planeID = p.planeID
         JOIN Airport oa ON f.originAirportID = oa.airportID
@@ -42,18 +57,29 @@ crow::json::wvalue Db::getAllFlights() {
 
     int i = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        flights[i]["flightID"] = sqlite3_column_int(stmt, 0);
-        flights[i]["airline"] = (const char*)sqlite3_column_text(stmt, 1);
-        flights[i]["gate"] = (const char*)sqlite3_column_text(stmt, 2);
-        flights[i]["passengers"] = sqlite3_column_int(stmt, 3);
-        flights[i]["departureTime"] = (const char*)sqlite3_column_text(stmt, 4);
-        flights[i]["plane"] = (const char*)sqlite3_column_text(stmt, 5);
-        flights[i]["originCode"] = (const char*)sqlite3_column_text(stmt, 6);
-        flights[i]["destCode"] = (const char*)sqlite3_column_text(stmt, 7);
-        flights[i]["originCity"] = (const char*)sqlite3_column_text(stmt, 8);
-        flights[i]["destCity"] = (const char*)sqlite3_column_text(stmt, 9);
+        auto& flight = flights[i];
+
+        flight["flightID"] = sqlite3_column_int(stmt, 0);
+        flight["airline"] = (const char*)sqlite3_column_text(stmt, 1);
+        flight["gate"] = (const char*)sqlite3_column_text(stmt, 2);
+        flight["passengers"] = sqlite3_column_int(stmt, 3);
+        flight["departureTime"] = (const char*)sqlite3_column_text(stmt, 4);
+        flight["plane"] = (const char*)sqlite3_column_text(stmt, 5);
+
+        flight["origin"]["code"] = (const char*)sqlite3_column_text(stmt, 6);
+        flight["destination"]["code"] = (const char*)sqlite3_column_text(stmt, 7);
+
+        flight["origin"]["city"] = (const char*)sqlite3_column_text(stmt, 8);
+        flight["destination"]["city"] = (const char*)sqlite3_column_text(stmt, 9);
+
+        flight["origin"]["latitude"] = sqlite3_column_double(stmt, 10);
+        flight["origin"]["longitude"] = sqlite3_column_double(stmt, 11);
+        flight["destination"]["latitude"] = sqlite3_column_double(stmt, 12);
+        flight["destination"]["longitude"] = sqlite3_column_double(stmt, 13);
+
         i++;
     }
+
 
     sqlite3_finalize(stmt);
     return flights;
