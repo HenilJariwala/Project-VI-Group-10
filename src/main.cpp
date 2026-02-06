@@ -44,6 +44,11 @@ int main() {
         return crow::response{200, out};
     });
 
+    // assets routes (images, gifs)
+    CROW_ROUTE(app, "/assets/<string>")([](const std::string& file){
+        return serveFile("/app/public/assets/" + file, "image/gif");
+    });
+
     // pages routes
     CROW_ROUTE(app, "/pages/<string>")([](const std::string& file){
         return serveFile("/app/public/pages/" + file, "text/html; charset=utf-8");
