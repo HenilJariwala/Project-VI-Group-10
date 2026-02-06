@@ -1,11 +1,4 @@
-let flightsData = [];
 let filteredFlights = [];
-
-const statusOrder = {
-  boarding: 0,
-  ontime: 1,
-  departed: 2
-};
 
 const searchInput = document.getElementById("flightSearch");
 const dateInput = document.getElementById("dateSearch");
@@ -13,96 +6,32 @@ const sortSelect = document.getElementById("sortSelect");
 const clearBtn = document.getElementById("clearBtn");
 const dropdown = document.getElementById("searchDropdown");
 
-function getStatus(departureTime) {
-  const dep = new Date(departureTime);
-  const now = new Date();
+// Fetch flights from server (filtered & sorted) 
+function fetchFlights(renderPage = true) {
+  const search = encodeURIComponent(searchInput.value.trim());
+  const date = encodeURIComponent(dateInput.value);
+  const sort = encodeURIComponent(sortSelect.value);
 
-  if (dep < now) return { text: "DEPARTED", cls: "departed" };
+  let url = `/api/flights?search=${search}&sort=${sort}&date=${date}`;
 
-  const diff = (dep - now) / (1000 * 60);
-  if (diff < 30) return { text: "BOARDING", cls: "boarding" };
-
-  return { text: "ON TIME", cls: "ontime" };
-}
-
-function sortFlights(flights) {
-  if (sortSelect.value === "departure") {
-    return [...flights].sort(
-      (a, b) => new Date(a.departureTime) - new Date(b.departureTime)
-    );
-  }
-
-  if (sortSelect.value === "gate") {
-    return [...flights].sort((a, b) => a.gate.localeCompare(b.gate));
-  }
-
-  return [...flights].sort((a, b) => {
-    const sA = getStatus(a.departureTime).cls;
-    const sB = getStatus(b.departureTime).cls;
-    return statusOrder[sA] - statusOrder[sB];
-  });
-}
-
-function applyDateAndSort(base) {
-  let result = [...base];
-
-  if (dateInput.value) {
-    const selectedTime = new Date(dateInput.value).getTime();
-    result = result.filter(f => {
-      const flightTime = new Date(f.departureTime).getTime();
-      return Math.abs(flightTime - selectedTime) <= 24 * 60 * 60 * 1000;
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      filteredFlights = data.flights;
+      
+      if (renderPage) {
+        renderFlights(filteredFlights);
+      }
+      
+      if (searchInput.value.trim()) {
+        renderDropdown(filteredFlights);
+      } else {
+        dropdown.style.display = "none";
+      }
     });
-  }
-
-  return sortFlights(result);
 }
 
-fetch("/api/flights")
-  .then(res => res.json())
-  .then(data => {
-    flightsData = data.flights;
-    filteredFlights = [...flightsData];
-    renderFlights(sortFlights(filteredFlights));
-  });
-
-searchInput.addEventListener("input", () => {
-  const q = searchInput.value.toLowerCase().trim();
-
-  if (!q) {
-    dropdown.style.display = "none";
-    return;
-  }
-
-  const matches = flightsData.filter(f =>
-    f.airline.toLowerCase().includes(q) ||
-    f.origin.city.toLowerCase().includes(q) ||
-    f.origin.code.toLowerCase().includes(q) ||
-    f.destination.city.toLowerCase().includes(q) ||
-    f.destination.code.toLowerCase().includes(q) ||
-    f.gate.toLowerCase().includes(q) ||
-    f.plane.toLowerCase().includes(q)
-  );
-
-  renderDropdown(matches);
-});
-
-dateInput.addEventListener("change", () => {
-  renderFlights(applyDateAndSort(filteredFlights.length ? filteredFlights : flightsData));
-});
-
-sortSelect.addEventListener("change", () => {
-  renderFlights(sortFlights(filteredFlights.length ? filteredFlights : flightsData));
-});
-
-clearBtn.addEventListener("click", () => {
-  searchInput.value = "";
-  dateInput.value = "";
-  sortSelect.value = "status";
-  dropdown.style.display = "none";
-  filteredFlights = [...flightsData];
-  renderFlights(sortFlights(filteredFlights));
-});
-
+// Search dropdown 
 function renderDropdown(flights) {
   dropdown.innerHTML = "";
 
@@ -120,7 +49,7 @@ function renderDropdown(flights) {
       searchInput.value = `${f.origin.code} → ${f.destination.code}`;
       dropdown.style.display = "none";
       filteredFlights = [f];
-      renderFlights(applyDateAndSort(filteredFlights));
+      renderFlights(filteredFlights);
     };
 
     dropdown.appendChild(item);
@@ -129,25 +58,12 @@ function renderDropdown(flights) {
   dropdown.style.display = flights.length ? "block" : "none";
 }
 
-document.addEventListener("click", e => {
-  if (!e.target.closest(".search-box")) {
-    dropdown.style.display = "none";
-  }
-});
-
+// Render flight cards 
 function renderFlights(flights) {
   const container = document.getElementById("flightList");
   container.innerHTML = "";
 
   flights.forEach(f => {
-    const status = getStatus(f.departureTime);
-    const dep = new Date(f.departureTime);
-    const now = new Date();
-    const progress = Math.min(
-      Math.max((now - (dep - 30 * 60 * 1000)) / (30 * 60 * 1000), 0),
-      1
-    );
-
     const card = document.createElement("div");
     card.innerHTML = `
       <div class="flight-card">
@@ -166,7 +82,7 @@ function renderFlights(flights) {
             <img src="/assets/plane.gif" 
               class="plane-gif" 
               data-flight-id="${f.flightID}" 
-              style="left:${progress * 100}%">
+              style="left:${f.progress * 100}%">
             <div class="plane-name">${f.plane}</div>
           </div>
 
@@ -182,8 +98,8 @@ function renderFlights(flights) {
           ${f.passengers} passengers
         </div>
 
-        <div class="status ${status.cls}" data-flight-id="${f.flightID}">
-          ${status.text}
+        <div class="status ${f.status.class}" data-flight-id="${f.flightID}">
+          ${f.status.text}
         </div>
 
       </div>
@@ -196,50 +112,17 @@ function renderFlights(flights) {
   });
 }
 
+// Updating plane progress & status every 5 seconds
+// Now just re-fetches from server instead of recalculating
 function updateFlightProgressAndStatus() {
-  const now = new Date();
-
-  document.querySelectorAll(".plane-gif").forEach(plane => {
-    const flightID = plane.dataset.flightId;
-    const flight = filteredFlights.find(f => f.flightID == flightID);
-    if (!flight) return;
-
-    const dep = new Date(flight.departureTime);
-
-    // --- Update plane progress ---
-    let progress = Math.min(Math.max((now - (dep - 30 * 60 * 1000)) / (30 * 60 * 1000), 0), 1);
-    plane.style.left = `${progress * 100}%`;
-
-    // --- Update status ---
-    const statusEl = document.querySelector(`.status[data-flight-id="${flightID}"]`);
-    if (!statusEl) return;
-
-    const diff = (dep - now) / (1000 * 60); // difference in minutes
-    let statusCls, statusText;
-
-    if (diff < 0) {
-      statusCls = "departed";
-      statusText = "DEPARTED";
-    } else if (diff < 30) {
-      statusCls = "boarding";
-      statusText = "BOARDING";
-    } else {
-      statusCls = "ontime";
-      statusText = "ON TIME";
-    }
-
-    // Only update if changed
-    if (statusEl.className !== `status ${statusCls}`) {
-      statusEl.className = `status ${statusCls}`;
-      statusEl.textContent = statusText;
-    }
-  });
+  if (filteredFlights.length > 0) {
+    fetchFlights(true);
+  }
 }
 
-// Update every 5 seconds
 setInterval(updateFlightProgressAndStatus, 5000);
 
-
+// --- Load weather ---
 function loadWeather(lat, lon, elementId) {
   fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
     .then(res => res.json())
@@ -263,3 +146,24 @@ function weatherCodeToText(code) {
   if (code <= 77) return "Snow ❄️";
   return "Storm ⛈️";
 }
+
+// Event listeners
+searchInput.addEventListener("input", () => fetchFlights(false));
+dateInput.addEventListener("change", () => fetchFlights(true));
+sortSelect.addEventListener("change", () => fetchFlights(true));
+
+clearBtn.addEventListener("click", () => {
+  searchInput.value = "";
+  dateInput.value = "";
+  sortSelect.value = "status";
+  filteredFlights = [];
+  dropdown.style.display = "none";
+  fetchFlights(true);
+});
+
+document.addEventListener("click", e => {
+  if (!e.target.closest(".search-box")) dropdown.style.display = "none";
+});
+
+// Initial load 
+fetchFlights(true);
