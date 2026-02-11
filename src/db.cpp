@@ -21,17 +21,21 @@ Db::~Db() {
 
 // Return all flights
 crow::json::wvalue Db::getAllFlights() {
-    crow::json::wvalue flights;
+    crow::json::wvalue flights = crow::json::wvalue::list();
     sqlite3_stmt* stmt;
 
     const char* sql = R"(
         SELECT
         f.flightID,
-        f.airline,
         f.gate,
         f.passengerCount,
         f.departureTime,
+
         p.model AS planeModel,
+        p.speed AS planeSpeed,
+
+        al.name AS airlineName,
+        al.logoPath AS airlineLogo,
 
         oa.code AS originCode,
         da.code AS destCode,
@@ -45,11 +49,12 @@ crow::json::wvalue Db::getAllFlights() {
         dc.longitude AS destLon
 
         FROM Flight f
-        JOIN Plane p ON f.planeID = p.planeID
+        JOIN Plane p   ON f.planeID = p.planeID
+        JOIN Airline al ON f.airlineID = al.airlineID
         JOIN Airport oa ON f.originAirportID = oa.airportID
         JOIN Airport da ON f.destinationAirportID = da.airportID
-        JOIN Cities oc ON oa.cityID = oc.cityID
-        JOIN Cities dc ON da.cityID = dc.cityID
+        JOIN Cities oc  ON oa.cityID = oc.cityID
+        JOIN Cities dc  ON da.cityID = dc.cityID
         ORDER BY f.departureTime;
     )";
 
@@ -60,22 +65,36 @@ crow::json::wvalue Db::getAllFlights() {
         auto& flight = flights[i];
 
         flight["flightID"] = sqlite3_column_int(stmt, 0);
-        flight["airline"] = (const char*)sqlite3_column_text(stmt, 1);
-        flight["gate"] = (const char*)sqlite3_column_text(stmt, 2);
-        flight["passengers"] = sqlite3_column_int(stmt, 3);
-        flight["departureTime"] = (const char*)sqlite3_column_text(stmt, 4);
-        flight["plane"] = (const char*)sqlite3_column_text(stmt, 5);
+        flight["gate"] = (const char*)sqlite3_column_text(stmt, 1);
+        flight["passengers"] = sqlite3_column_int(stmt, 2);
+        flight["departureTime"] = (const char*)sqlite3_column_text(stmt, 3);
 
-        flight["origin"]["code"] = (const char*)sqlite3_column_text(stmt, 6);
-        flight["destination"]["code"] = (const char*)sqlite3_column_text(stmt, 7);
+        flight["plane"] = (const char*)sqlite3_column_text(stmt, 4);
+        flight["planeSpeed"] = sqlite3_column_int(stmt, 5);
 
-        flight["origin"]["city"] = (const char*)sqlite3_column_text(stmt, 8);
-        flight["destination"]["city"] = (const char*)sqlite3_column_text(stmt, 9);
+        flight["airline"]["name"] =
+            (const char*)sqlite3_column_text(stmt, 6);
+        flight["airline"]["logoPath"] =
+            (const char*)sqlite3_column_text(stmt, 7);
 
-        flight["origin"]["latitude"] = sqlite3_column_double(stmt, 10);
-        flight["origin"]["longitude"] = sqlite3_column_double(stmt, 11);
-        flight["destination"]["latitude"] = sqlite3_column_double(stmt, 12);
-        flight["destination"]["longitude"] = sqlite3_column_double(stmt, 13);
+        flight["origin"]["code"] =
+            (const char*)sqlite3_column_text(stmt, 8);
+        flight["destination"]["code"] =
+            (const char*)sqlite3_column_text(stmt, 9);
+
+        flight["origin"]["city"] =
+            (const char*)sqlite3_column_text(stmt, 10);
+        flight["destination"]["city"] =
+            (const char*)sqlite3_column_text(stmt, 11);
+
+        flight["origin"]["latitude"] =
+            sqlite3_column_double(stmt, 12);
+        flight["origin"]["longitude"] =
+            sqlite3_column_double(stmt, 13);
+        flight["destination"]["latitude"] =
+            sqlite3_column_double(stmt, 14);
+        flight["destination"]["longitude"] =
+            sqlite3_column_double(stmt, 15);
 
         i++;
     }
@@ -140,6 +159,33 @@ crow::json::wvalue Db::getAllAirports() {
     return arr;
 }
 
+//return the airliens
+crow::json::wvalue Db::getAllAirlines() {
+    const char* sql =
+        "SELECT airlineID, name, logoPath "
+        "FROM Airline ORDER BY name ASC;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare getAllAirlines");
+    }
+
+    crow::json::wvalue arr = crow::json::wvalue::list();
+    int i = 0;
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        crow::json::wvalue a;
+        a["airlineID"] = sqlite3_column_int(stmt, 0);
+        a["name"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        a["logoPath"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        arr[i++] = std::move(a);
+    }
+
+    sqlite3_finalize(stmt);
+    return arr;
+}
+
+
 // Reads an entire file into a std::string so we can read schema.sql and also the seed.sql
 static std::string readWholeFile(const std::string& path) {
     std::ifstream file(path);
@@ -202,11 +248,12 @@ void Db::seedIfEmpty(const std::string& seedPath) {
 
 
 // Inserts a new flight row  in the db and returns the generated primary key (flightID)
-int Db::createFlight(int planeID, int originAirportID, int destinationAirportID,
-                     const std::string& airline, const std::string& gate,
+int Db::createFlight(int planeID, int airlineID,
+                     int originAirportID, int destinationAirportID,
+                     const std::string& gate,
                      int passengerCount, const std::string& departureTime) {
     const char* sql =
-        "INSERT INTO Flight(planeID, originAirportID, destinationAirportID, airline, gate, passengerCount, departureTime) "
+        "INSERT INTO Flight(planeID, airlineID, originAirportID, destinationAirportID, gate, passengerCount, departureTime) "
         "VALUES(?, ?, ?, ?, ?, ?, ?);";
 
     sqlite3_stmt* stmt = nullptr;
@@ -215,9 +262,9 @@ int Db::createFlight(int planeID, int originAirportID, int destinationAirportID,
     }
 
     sqlite3_bind_int(stmt, 1, planeID);
-    sqlite3_bind_int(stmt, 2, originAirportID);
-    sqlite3_bind_int(stmt, 3, destinationAirportID);
-    sqlite3_bind_text(stmt, 4, airline.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 2, airlineID);
+    sqlite3_bind_int(stmt, 3, originAirportID);
+    sqlite3_bind_int(stmt, 4, destinationAirportID);
     sqlite3_bind_text(stmt, 5, gate.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt, 6, passengerCount);
     sqlite3_bind_text(stmt, 7, departureTime.c_str(), -1, SQLITE_TRANSIENT);

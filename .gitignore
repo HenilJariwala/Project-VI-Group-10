@@ -7,3 +7,4 @@ server
 runtime_db/
 *.db
 *.db-journal
+flights.db

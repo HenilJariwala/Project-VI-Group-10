@@ -1,5 +1,7 @@
 #include "crow_all.h"
 #include "db.h"
+#include "geo.h"
+#include "timeutil.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -9,8 +11,13 @@
 
 struct FlightItem {
     int flightID;
-    std::string airline;
+    std::string airlineName;
+    std::string airlineLogoPath;
     std::string plane;
+    int planeSpeed =0;
+    std::string arrivalTime;
+    double distanceKm =0.0;
+    int durationMinutes = 0;
     std::string gate;
     int passengers;
     std::string departureTime;
@@ -47,8 +54,10 @@ std::vector<FlightItem> jsonToFlights(const crow::json::rvalue& flightsJson) {
         FlightItem item;
 
         item.flightID      = f["flightID"].i();
-        item.airline       = f["airline"].s();
+        item.airlineName   = f["airline"]["name"].s();
+        item.airlineLogoPath = f["airline"]["logoPath"].s();
         item.plane         = f["plane"].s();
+        item.planeSpeed = f["planeSpeed"].i();
         item.gate          = f["gate"].s();
         item.passengers    = f["passengers"].i();
         item.departureTime = f["departureTime"].s();
@@ -109,7 +118,7 @@ int main() {
                         std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::tolower);
                         return tmp.find(lowerSearch) == std::string::npos;
                     };
-                    return check(f.airline) && check(f.origin.city) && check(f.origin.code) &&
+                    return check(f.airlineName) && check(f.origin.city) && check(f.origin.code) &&
                         check(f.destination.city) && check(f.destination.code) &&
                         check(f.gate) && check(f.plane);
                 }),
@@ -193,7 +202,8 @@ int main() {
         for (auto& f : flights) {
             crow::json::wvalue j;
             j["flightID"] = f.flightID;
-            j["airline"] = f.airline;
+            j["airline"]["name"] = f.airlineName;
+            j["airline"]["logoPath"] = f.airlineLogoPath;
             j["plane"] = f.plane;
             j["gate"] = f.gate;
             j["passengers"] = f.passengers;
@@ -215,6 +225,32 @@ int main() {
             j["destination"]["latitude"] = f.destination.latitude;
             j["destination"]["longitude"] = f.destination.longitude;
 
+
+            f.distanceKm = geo::haversineKm(
+                f.origin.latitude, f.origin.longitude,
+                f.destination.latitude, f.destination.longitude
+            );
+            f.durationMinutes = geo::durationMinutes(f.distanceKm, f.planeSpeed);
+
+            std::chrono::system_clock::time_point depTp;
+            if (timeutil::parseIso8601Utc(f.departureTime, depTp)) {
+                auto arrTp = depTp + std::chrono::minutes(f.durationMinutes);
+                f.arrivalTime = timeutil::formatIso8601Utc(arrTp);
+            } else {
+                f.arrivalTime = "";
+            }
+
+            int h = f.durationMinutes / 60;
+            int m = f.durationMinutes % 60;
+
+            std::string durationText = std::to_string(h) + "h " + std::to_string(m) + "m";
+            
+            j["distanceKm"] = f.distanceKm;
+            j["durationMinutes"] = f.durationMinutes;
+            j["durationText"] = durationText;
+            j["arrivalTime"] = f.arrivalTime;
+
+
             flightsList.push_back(std::move(j));
         }
 
@@ -231,6 +267,13 @@ int main() {
     CROW_ROUTE(app, "/assets/<string>")([](const std::string& file){
         return serveFile("/app/public/assets/" + file, "image/gif");
     });
+
+    //assets route for the logos
+    CROW_ROUTE(app, "/assets/<string>/<string>")
+    ([](const std::string& folder, const std::string& file){
+        return serveFile("/app/public/assets/" + folder + "/" + file, "image/png");
+    });
+
 
     // pages routes
     CROW_ROUTE(app, "/pages/<string>")([](const std::string& file){
@@ -263,6 +306,15 @@ int main() {
         return crow::response{200, out};
     });
 
+    // GET /api/airlines
+    CROW_ROUTE(app, "/api/airlines").methods(crow::HTTPMethod::GET)
+    ([&db]{
+        crow::json::wvalue out;
+        out["airlines"] = db.getAllAirlines();
+        return crow::response{200, out};
+    });
+
+
     // POST /api/flights
     CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::POST)
     ([&db](const crow::request& req){
@@ -271,7 +323,7 @@ int main() {
 
         const char* fields[] = {
             "planeID","originAirportID","destinationAirportID",
-            "airline","gate","passengerCount","departureTime"
+            "airlineID","gate","passengerCount","departureTime"
         };
 
         for (auto f : fields) {
@@ -285,9 +337,9 @@ int main() {
         try {
             int id = db.createFlight(
                 body["planeID"].i(),
+                body["airlineID"].i(),
                 body["originAirportID"].i(),
                 body["destinationAirportID"].i(),
-                body["airline"].s(),
                 body["gate"].s(),
                 body["passengerCount"].i(),
                 body["departureTime"].s()
