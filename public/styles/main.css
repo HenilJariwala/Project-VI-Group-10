@@ -318,3 +318,61 @@ button { width: auto; cursor: pointer; }
 .search-item:hover {
   background: #f1f5f9;
 }
+
+
+/* Simple utility styles used by Update/Delete pages */
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 14px 0 18px;
+}
+
+.button-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.btn {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn.btn-secondary {
+  border-color: #d1d5db;
+  background: #f9fafb;
+  color: #111;
+}
+
+.btn.btn-secondary:hover {
+  background: #eef2ff;
+  border-color: #2563eb;
+}
+
+.btn.btn-danger {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hint.error {
+  color: #b91c1c;
+  font-weight: 600;
+}

@@ -308,6 +308,168 @@ int main() {
     });
 
 
+    // GET /api/flights/<id>
+    CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::GET)
+    ([&db](int flightID){
+        try {
+            crow::json::wvalue out;
+            if (!db.getFlightById(flightID, out)) {
+                return crow::response{404, "Flight not found"};
+            }
+
+            crow::response res;
+            res.code = 200;
+            res.set_header("Content-Type", "application/json");
+            res.body = out.dump();
+            return res;
+        } catch (const std::exception& e) {
+            return crow::response{500, e.what()};
+        }
+    });
+
+    // PUT /api/flights/<id>
+    CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::PUT)
+    ([&db](const crow::request& req, int flightID){
+        auto body = crow::json::load(req.body);
+        if (!body) return crow::response{400, "Invalid JSON"};
+
+        const char* fields[] = {
+            "planeID","originAirportID","destinationAirportID",
+            "airline","gate","passengerCount","departureTime"
+        };
+
+        for (auto f : fields) {
+            if (!body.has(f)) return crow::response{400, std::string("Missing field: ") + f};
+        }
+
+        if (body["originAirportID"].i() == body["destinationAirportID"].i()) {
+            return crow::response{400, "originAirportID and destinationAirportID must be different"};
+        }
+
+        try {
+            crow::json::wvalue existing;
+            if (!db.getFlightById(flightID, existing)) {
+                return crow::response{404, "Flight not found"};
+            }
+
+            bool ok = db.updateFlight(
+                flightID,
+                body["planeID"].i(),
+                body["originAirportID"].i(),
+                body["destinationAirportID"].i(),
+                body["airline"].s(),
+                body["gate"].s(),
+                body["passengerCount"].i(),
+                body["departureTime"].s()
+            );
+
+            if (!ok) return crow::response{404, "Flight not found"};
+
+            crow::json::wvalue out;
+            out["message"] = "Flight updated";
+            out["flightID"] = flightID;
+
+            crow::response res;
+            res.code = 200;
+            res.set_header("Content-Type", "application/json");
+            res.body = out.dump();
+            return res;
+        } catch (const std::exception& e) {
+            return crow::response{500, e.what()};
+        }
+    });
+
+    // PATCH /api/flights/<id>
+    CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::PATCH)
+    ([&db](const crow::request& req, int flightID){
+        auto body = crow::json::load(req.body);
+        if (!body) return crow::response{400, "Invalid JSON"};
+
+        try {
+            // Fetch existing flight (wvalue)
+            crow::json::wvalue existingW;
+            if (!db.getFlightById(flightID, existingW)) {
+                return crow::response{404, "Flight not found"};
+            }
+
+            // Convert wvalue -> rvalue so we can use .i() / .s()
+            auto existing = crow::json::load(existingW.dump());
+            if (!existing) {
+                return crow::response{500, "Failed to parse existing flight JSON"};
+            }
+
+            // Merge: body overrides existing for any provided field
+            int planeID = body.has("planeID") ? body["planeID"].i() : existing["planeID"].i();
+            int originAirportID = body.has("originAirportID") ? body["originAirportID"].i() : existing["originAirportID"].i();
+            int destinationAirportID = body.has("destinationAirportID") ? body["destinationAirportID"].i() : existing["destinationAirportID"].i();
+
+            std::string airline = body.has("airline")
+                ? std::string(body["airline"].s())
+                : std::string(existing["airline"].s());
+
+            std::string gate = body.has("gate")
+                ? std::string(body["gate"].s())
+                : std::string(existing["gate"].s());
+
+            int passengerCount = body.has("passengerCount")
+                ? body["passengerCount"].i()
+                : existing["passengerCount"].i();
+
+            std::string departureTime = body.has("departureTime")
+                ? std::string(body["departureTime"].s())
+                : std::string(existing["departureTime"].s());
+
+            // Validation
+            if (originAirportID == destinationAirportID) {
+                return crow::response{400, "originAirportID and destinationAirportID must be different"};
+            }
+
+            bool ok = db.updateFlight(
+                flightID, planeID, originAirportID, destinationAirportID,
+                airline, gate, passengerCount, departureTime
+            );
+
+            if (!ok) return crow::response{404, "Flight not found"};
+
+            crow::json::wvalue out;
+            out["message"] = "Flight patched";
+            out["flightID"] = flightID;
+
+            crow::response res;
+            res.code = 200;
+            res.set_header("Content-Type", "application/json");
+            res.body = out.dump();
+            return res;
+
+        } catch (const std::exception& e) {
+            return crow::response{500, e.what()};
+        }
+    });
+
+
+    // DELETE /api/flights/<id>
+    CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::DELETE)
+    ([&db](int flightID){
+        try {
+            bool ok = db.deleteFlight(flightID);
+            if (!ok) return crow::response{404, "Flight not found"};
+
+            crow::json::wvalue out;
+            out["message"] = "Flight deleted";
+            out["flightID"] = flightID;
+
+            crow::response res;
+            res.code = 200;
+            res.set_header("Content-Type", "application/json");
+            res.body = out.dump();
+            return res;
+        } catch (const std::exception& e) {
+            return crow::response{500, e.what()};
+        }
+    });
+
+
+
     //run
     app.port(18080).multithreaded().run();
     return 0;

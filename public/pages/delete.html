@@ -23,8 +23,27 @@
   <main class="content">
     <div class="card">
       <h2>Delete Flight</h2>
-      <p class="hint">Placeholder page. Later this will use DELETE /flights/{id}.</p>
+      <p class="hint">
+        Select a flight and delete it using <code>DELETE /api/flights/{id}</code>.
+        This action cannot be undone.
+      </p>
+
+      <div class="row">
+        <label>Choose Flight
+          <select id="flightSelect"></select>
+        </label>
+        <button id="reloadBtn" type="button" class="btn btn-secondary">Reload List</button>
+      </div>
+
+      <div class="button-row">
+        <button id="deleteBtn" type="button" class="btn btn-danger">Delete Flight</button>
+      </div>
+
+      <p id="details" class="hint"></p>
+      <p id="msg" class="hint"></p>
     </div>
   </main>
+
+  <script src="/scripts/delete.js"></script>
 </body>
 </html>

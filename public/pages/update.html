@@ -23,8 +23,58 @@
   <main class="content">
     <div class="card">
       <h2>Update Flight</h2>
-      <p class="hint">Placeholder page. Later this will use PUT /flights and PATCH /flights.</p>
+      <p class="hint">
+        Select a flight, edit the fields, and save using <code>PUT /api/flights/{id}</code>.
+      </p>
+
+      <div class="row">
+        <label>Choose Flight
+          <select id="flightSelect"></select>
+        </label>
+        <button id="reloadBtn" type="button" class="btn btn-secondary">Reload List</button>
+      </div>
+
+      <hr class="divider" />
+
+      <form id="updateFlightForm">
+        <label>Plane
+          <select id="planeID" required></select>
+        </label>
+
+        <label>Origin Airport
+          <select id="originAirportID" required></select>
+        </label>
+
+        <label>Destination Airport
+          <select id="destinationAirportID" required></select>
+        </label>
+
+        <label>Airline
+          <input id="airline" type="text" required />
+        </label>
+
+        <label>Gate
+          <input id="gate" type="text" required />
+        </label>
+
+        <label>Passengers
+          <input id="passengerCount" type="number" min="0" required />
+        </label>
+
+        <label>Departure Time
+          <input id="departureTime" type="datetime-local" required />
+        </label>
+
+        <div class="button-row">
+          <button type="submit" class="btn">Save Changes</button>
+          <button id="resetBtn" type="button" class="btn btn-secondary">Reset</button>
+        </div>
+      </form>
+
+      <p id="msg" class="hint"></p>
     </div>
   </main>
+
+  <script src="/scripts/update.js"></script>
 </body>
 </html>

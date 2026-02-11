@@ -230,3 +230,86 @@ int Db::createFlight(int planeID, int originAirportID, int destinationAirportID,
     sqlite3_finalize(stmt);
     return static_cast<int>(sqlite3_last_insert_rowid(db_));
 }
+
+bool Db::getFlightById(int flightID, crow::json::wvalue& out) {
+    const char* sql =
+        "SELECT flightID, planeID, originAirportID, destinationAirportID, airline, gate, passengerCount, departureTime "
+        "FROM Flight WHERE flightID = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare getFlightById");
+    }
+
+    sqlite3_bind_int(stmt, 1, flightID);
+
+    bool found = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        found = true;
+        out["flightID"] = sqlite3_column_int(stmt, 0);
+        out["planeID"] = sqlite3_column_int(stmt, 1);
+        out["originAirportID"] = sqlite3_column_int(stmt, 2);
+        out["destinationAirportID"] = sqlite3_column_int(stmt, 3);
+        out["airline"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        out["gate"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        out["passengerCount"] = sqlite3_column_int(stmt, 6);
+        out["departureTime"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
+    }
+
+    sqlite3_finalize(stmt);
+    return found;
+}
+
+bool Db::updateFlight(int flightID,
+                      int planeID,
+                      int originAirportID,
+                      int destinationAirportID,
+                      const std::string& airline,
+                      const std::string& gate,
+                      int passengerCount,
+                      const std::string& departureTime) {
+    const char* sql =
+        "UPDATE Flight SET planeID=?, originAirportID=?, destinationAirportID=?, airline=?, gate=?, passengerCount=?, departureTime=? "
+        "WHERE flightID=?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare updateFlight");
+    }
+
+    sqlite3_bind_int(stmt, 1, planeID);
+    sqlite3_bind_int(stmt, 2, originAirportID);
+    sqlite3_bind_int(stmt, 3, destinationAirportID);
+    sqlite3_bind_text(stmt, 4, airline.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, gate.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 6, passengerCount);
+    sqlite3_bind_text(stmt, 7, departureTime.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 8, flightID);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        throw std::runtime_error("Failed to UPDATE flight");
+    }
+
+    sqlite3_finalize(stmt);
+    return sqlite3_changes(db_) > 0;
+}
+
+bool Db::deleteFlight(int flightID) {
+    const char* sql = "DELETE FROM Flight WHERE flightID = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare deleteFlight");
+    }
+
+    sqlite3_bind_int(stmt, 1, flightID);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        throw std::runtime_error("Failed to DELETE flight");
+    }
+
+    sqlite3_finalize(stmt);
+    return sqlite3_changes(db_) > 0;
+}
