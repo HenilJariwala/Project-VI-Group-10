@@ -14,13 +14,16 @@ public:
     void seedIfEmpty(const std::string& seedPath);
 
     // Flights
+    crow::json::wvalue getAllAirlines();
     crow::json::wvalue getAllFlights();
 
     crow::json::wvalue getAllPlanes();
     crow::json::wvalue getAllAirports();
-    int createFlight(int planeID, int originAirportID, int destinationAirportID,
-                 const std::string& airline, const std::string& gate,
-                 int passengerCount, const std::string& departureTime);
+    int createFlight(int planeID, int airlineID,
+                    int originAirportID, int destinationAirportID,
+                    const std::string& gate,
+                    int passengerCount, const std::string& departureTime);
+
 
 private:
     sqlite3* db_{nullptr};

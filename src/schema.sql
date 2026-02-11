@@ -26,11 +26,18 @@ CREATE TABLE IF NOT EXISTS Flight (
   planeID INTEGER NOT NULL,
   originAirportID INTEGER NOT NULL,
   destinationAirportID INTEGER NOT NULL,
-  airline TEXT NOT NULL,
+  airlineID INTEGER NOT NULL,
   gate TEXT NOT NULL,
   passengerCount INTEGER NOT NULL,
   departureTime TEXT NOT NULL,
   FOREIGN KEY (planeID) REFERENCES Plane(planeID),
   FOREIGN KEY (originAirportID) REFERENCES Airport(airportID),
   FOREIGN KEY (destinationAirportID) REFERENCES Airport(airportID)
+  FOREIGN KEY (airlineID) REFERENCES Airline(airlineID)
+);
+
+CREATE TABLE IF NOT EXISTS Airline (
+  airlineID INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  logoPath TEXT NOT NULL
 );

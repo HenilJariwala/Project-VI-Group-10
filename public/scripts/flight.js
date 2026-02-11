@@ -68,7 +68,11 @@ function renderFlights(flights) {
     card.innerHTML = `
       <div class="flight-card">
         <div class="airline-title">
-          <span>${f.airline}</span>
+          <img
+            src="${f.airline.logoPath}"
+            alt="${f.airline.name}"
+            title="${f.airline.name}"
+          />
         </div>
 
         <div class="route-row">

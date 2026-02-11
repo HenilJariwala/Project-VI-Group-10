@@ -29,10 +29,26 @@ async function loadAirports(selectId) {
   });
 }
 
+// airline loader
+async function loadAirlines() {
+  const res = await fetch("/api/airlines");
+  const data = await res.json();
+  const sel = document.getElementById("airlineID");
+
+  sel.innerHTML = "";
+  data.airlines.forEach(a => {
+    const opt = document.createElement("option");
+    opt.value = a.airlineID;
+    opt.textContent = a.name;
+    sel.appendChild(opt);
+  });
+}
+
 // When the page loads, populate dropdowns from the DB
 // and also wire up the form to POST a new flight to /api/flights
 document.addEventListener("DOMContentLoaded", async () => {
   await loadPlanes();
+  await loadAirlines();
   await loadAirports("originAirportID");
   await loadAirports("destinationAirportID");
 
@@ -75,12 +91,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     msg.textContent = "Submitting...";
 
+    const airlineID = Number(document.getElementById("airlineID").value);
     // Build JSON payload expected by POST /api/flights
     const payload = {
       planeID,
       originAirportID,
       destinationAirportID,
-      airline: document.getElementById("airline").value.trim(),
+      airlineID,
       gate: document.getElementById("gate").value.trim(),
       passengerCount,
       departureTime: departureISO
@@ -96,4 +113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     msg.textContent = `Status ${res.status}: ${text}`;
   });
 });
+
+
+
 
