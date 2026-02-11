@@ -9,7 +9,7 @@ const msg = $("msg");
 const planeID = $("planeID");
 const originAirportID = $("originAirportID");
 const destinationAirportID = $("destinationAirportID");
-const airline = $("airline");
+const airlineID = $("airlineID");
 const gate = $("gate");
 const passengerCount = $("passengerCount");
 const departureTime = $("departureTime");
@@ -21,36 +21,60 @@ function setMsg(text, isError = false) {
   msg.classList.toggle("error", !!isError);
 }
 
-function toLocalDatetimeInput(iso) {
-  if (!iso) return "";
-  return iso.length >= 16 ? iso.slice(0, 16) : iso;
-}
-
-function toIsoSecondsFromInput(dtLocal) {
-  if (!dtLocal) return "";
-  return dtLocal.length === 16 ? `${dtLocal}:00` : dtLocal;
-}
-
 async function fetchJson(url, opts) {
   const res = await fetch(url, opts);
   const ct = res.headers.get("content-type") || "";
   const isJson = ct.includes("application/json");
   const body = isJson ? await res.json() : await res.text();
+
   if (!res.ok) {
     const err = typeof body === "string" ? body : (body?.message || JSON.stringify(body));
     throw new Error(err || `HTTP ${res.status}`);
   }
+
   return body;
+}
+
+// Convert ISO -> datetime-local in *local time*
+function isoToLocalDatetimeInput(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const min = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+
+// Convert datetime-local -> ISO string (UTC)
+function localDatetimeInputToIso(dtLocal) {
+  if (!dtLocal) return "";
+  const d = new Date(dtLocal); // interpreted as local
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString();
+}
+
+function selectedPlaneMaxSeats() {
+  const opt = planeID.selectedOptions?.[0];
+  if (!opt) return null;
+  const v = Number(opt.dataset.maxSeats);
+  return Number.isFinite(v) ? v : null;
 }
 
 async function loadPlanes() {
   planeID.innerHTML = "";
   const data = await fetchJson("/api/planes");
-  const planes = data.planes || data;
-  (planes || []).forEach((p) => {
+  const planes = data.planes || [];
+
+  planes.forEach((p) => {
     const opt = document.createElement("option");
     opt.value = p.planeID;
-    opt.textContent = `${p.model} (max ${p.maxSeats})`;
+    opt.textContent = `${p.model} (seats ${p.maxSeats})`;
+    opt.dataset.maxSeats = p.maxSeats;
     planeID.appendChild(opt);
   });
 }
@@ -58,10 +82,12 @@ async function loadPlanes() {
 async function loadAirports() {
   originAirportID.innerHTML = "";
   destinationAirportID.innerHTML = "";
+
   const data = await fetchJson("/api/airports");
-  const airports = data.airports || data;
-  (airports || []).forEach((a) => {
-    const label = `${a.code} — ${a.city}`;
+  const airports = data.airports || [];
+
+  airports.forEach((a) => {
+    const label = `${a.code} - ${a.city}`;
 
     const opt1 = document.createElement("option");
     opt1.value = a.airportID;
@@ -72,6 +98,19 @@ async function loadAirports() {
     opt2.value = a.airportID;
     opt2.textContent = label;
     destinationAirportID.appendChild(opt2);
+  });
+}
+
+async function loadAirlines() {
+  airlineID.innerHTML = "";
+  const data = await fetchJson("/api/airlines");
+  const airlines = data.airlines || [];
+
+  airlines.forEach((a) => {
+    const opt = document.createElement("option");
+    opt.value = a.airlineID;
+    opt.textContent = a.name;
+    airlineID.appendChild(opt);
   });
 }
 
@@ -91,11 +130,17 @@ async function loadFlightList(selectFlightId = null) {
   }
 
   flightSelect.disabled = false;
+
   flights.forEach((f) => {
     const opt = document.createElement("option");
     opt.value = f.flightID;
+
     const when = (f.departureTime || "").replace("T", " ").slice(0, 16);
-    opt.textContent = `#${f.flightID} • ${f.airline} • ${f.origin.code} → ${f.destination.code} • ${when}`;
+    const airlineName = f.airline?.name ?? "Unknown Airline";
+    const o = f.origin?.code ?? "???";
+    const d = f.destination?.code ?? "???";
+
+    opt.textContent = `#${f.flightID} • ${airlineName} • ${o} → ${d} • ${when}`;
     flightSelect.appendChild(opt);
   });
 
@@ -114,10 +159,11 @@ async function loadFlightIntoForm(flightIDValue) {
   planeID.value = String(f.planeID);
   originAirportID.value = String(f.originAirportID);
   destinationAirportID.value = String(f.destinationAirportID);
-  airline.value = f.airline || "";
+  airlineID.value = String(f.airlineID);
+
   gate.value = f.gate || "";
-  passengerCount.value = f.passengerCount ?? "";
-  departureTime.value = toLocalDatetimeInput(f.departureTime);
+  passengerCount.value = (f.passengerCount ?? "") + "";
+  departureTime.value = isoToLocalDatetimeInput(f.departureTime);
 }
 
 function readFormPayload() {
@@ -125,21 +171,47 @@ function readFormPayload() {
     planeID: Number(planeID.value),
     originAirportID: Number(originAirportID.value),
     destinationAirportID: Number(destinationAirportID.value),
-    airline: airline.value.trim(),
+    airlineID: Number(airlineID.value),
     gate: gate.value.trim(),
     passengerCount: Number(passengerCount.value),
-    departureTime: toIsoSecondsFromInput(departureTime.value),
+    departureTime: localDatetimeInputToIso(departureTime.value),
   };
 }
 
+function validatePayload(payload) {
+  if (!payload.planeID || !payload.airlineID || !payload.originAirportID || !payload.destinationAirportID) {
+    throw new Error("Please fill out all dropdowns.");
+  }
+
+  if (payload.originAirportID === payload.destinationAirportID) {
+    throw new Error("Origin and destination must be different.");
+  }
+
+  if (!payload.gate) {
+    throw new Error("Gate is required.");
+  }
+
+  if (!Number.isFinite(payload.passengerCount) || payload.passengerCount < 0) {
+    throw new Error("Passenger count must be 0 or more.");
+  }
+
+  const maxSeats = selectedPlaneMaxSeats();
+  if (maxSeats != null && payload.passengerCount > maxSeats) {
+    throw new Error(`Passenger count cannot exceed max seats (${maxSeats}).`);
+  }
+
+  if (!payload.departureTime) {
+    throw new Error("Departure time is required.");
+  }
+}
+
 async function boot() {
-  await Promise.all([loadPlanes(), loadAirports()]);
+  // Load reference data first so selects are populated before we set .value
+  await Promise.all([loadPlanes(), loadAirports(), loadAirlines()]);
   await loadFlightList();
 
   const first = flightSelect.value;
-  if (first) {
-    await loadFlightIntoForm(first);
-  }
+  if (first) await loadFlightIntoForm(first);
 }
 
 reloadBtn.addEventListener("click", async () => {
@@ -147,9 +219,7 @@ reloadBtn.addEventListener("click", async () => {
     setMsg("Refreshing...");
     const current = flightSelect.value;
     await loadFlightList(current);
-    if (flightSelect.value) {
-      await loadFlightIntoForm(flightSelect.value);
-    }
+    if (flightSelect.value) await loadFlightIntoForm(flightSelect.value);
     setMsg("List refreshed.");
   } catch (e) {
     setMsg(e.message, true);
@@ -166,30 +236,32 @@ flightSelect.addEventListener("change", async () => {
 });
 
 resetBtn.addEventListener("click", () => {
-  if (lastLoadedFlight) {
-    planeID.value = String(lastLoadedFlight.planeID);
-    originAirportID.value = String(lastLoadedFlight.originAirportID);
-    destinationAirportID.value = String(lastLoadedFlight.destinationAirportID);
-    airline.value = lastLoadedFlight.airline || "";
-    gate.value = lastLoadedFlight.gate || "";
-    passengerCount.value = lastLoadedFlight.passengerCount ?? "";
-    departureTime.value = toLocalDatetimeInput(lastLoadedFlight.departureTime);
-    setMsg("Reset to last loaded values.");
-  }
+  if (!lastLoadedFlight) return;
+
+  planeID.value = String(lastLoadedFlight.planeID);
+  originAirportID.value = String(lastLoadedFlight.originAirportID);
+  destinationAirportID.value = String(lastLoadedFlight.destinationAirportID);
+  airlineID.value = String(lastLoadedFlight.airlineID);
+
+  gate.value = lastLoadedFlight.gate || "";
+  passengerCount.value = (lastLoadedFlight.passengerCount ?? "") + "";
+  departureTime.value = isoToLocalDatetimeInput(lastLoadedFlight.departureTime);
+
+  setMsg("Reset to last loaded values.");
 });
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
+
   try {
     const id = flightSelect.value;
     if (!id) throw new Error("Choose a flight first.");
 
     const payload = readFormPayload();
-    if (payload.originAirportID === payload.destinationAirportID) {
-      throw new Error("Origin and destination must be different.");
-    }
+    validatePayload(payload);
 
     setMsg("Saving...");
+
     await fetchJson(`/api/flights/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -197,6 +269,7 @@ form.addEventListener("submit", async (e) => {
     });
 
     await loadFlightIntoForm(id);
+    await loadFlightList(id); // keep list text in sync (if airline/time changed)
     setMsg(`Flight #${id} updated.`);
   } catch (e) {
     setMsg(e.message, true);

@@ -387,8 +387,9 @@ int main() {
 
         const char* fields[] = {
             "planeID","originAirportID","destinationAirportID",
-            "airline","gate","passengerCount","departureTime"
+            "airlineID","gate","passengerCount","departureTime"
         };
+
 
         for (auto f : fields) {
             if (!body.has(f)) return crow::response{400, std::string("Missing field: ") + f};
@@ -407,9 +408,9 @@ int main() {
             bool ok = db.updateFlight(
                 flightID,
                 body["planeID"].i(),
+                body["airlineID"].i(),
                 body["originAirportID"].i(),
                 body["destinationAirportID"].i(),
-                body["airline"].s(),
                 body["gate"].s(),
                 body["passengerCount"].i(),
                 body["departureTime"].s()
@@ -438,7 +439,7 @@ int main() {
         if (!body) return crow::response{400, "Invalid JSON"};
 
         try {
-            // Fetch existing flight (wvalue)
+            // Fetch existing flight (raw Flight table fields)
             crow::json::wvalue existingW;
             if (!db.getFlightById(flightID, existingW)) {
                 return crow::response{404, "Flight not found"};
@@ -451,13 +452,21 @@ int main() {
             }
 
             // Merge: body overrides existing for any provided field
-            int planeID = body.has("planeID") ? body["planeID"].i() : existing["planeID"].i();
-            int originAirportID = body.has("originAirportID") ? body["originAirportID"].i() : existing["originAirportID"].i();
-            int destinationAirportID = body.has("destinationAirportID") ? body["destinationAirportID"].i() : existing["destinationAirportID"].i();
+            int planeID = body.has("planeID")
+                ? body["planeID"].i()
+                : existing["planeID"].i();
 
-            std::string airline = body.has("airline")
-                ? std::string(body["airline"].s())
-                : std::string(existing["airline"].s());
+            int airlineID = body.has("airlineID")
+                ? body["airlineID"].i()
+                : existing["airlineID"].i();
+
+            int originAirportID = body.has("originAirportID")
+                ? body["originAirportID"].i()
+                : existing["originAirportID"].i();
+
+            int destinationAirportID = body.has("destinationAirportID")
+                ? body["destinationAirportID"].i()
+                : existing["destinationAirportID"].i();
 
             std::string gate = body.has("gate")
                 ? std::string(body["gate"].s())
@@ -476,9 +485,16 @@ int main() {
                 return crow::response{400, "originAirportID and destinationAirportID must be different"};
             }
 
+            // Apply update
             bool ok = db.updateFlight(
-                flightID, planeID, originAirportID, destinationAirportID,
-                airline, gate, passengerCount, departureTime
+                flightID,
+                planeID,
+                airlineID,
+                originAirportID,
+                destinationAirportID,
+                gate,
+                passengerCount,
+                departureTime
             );
 
             if (!ok) return crow::response{404, "Flight not found"};
@@ -497,6 +513,7 @@ int main() {
             return crow::response{500, e.what()};
         }
     });
+
 
 
     // DELETE /api/flights/<id>
