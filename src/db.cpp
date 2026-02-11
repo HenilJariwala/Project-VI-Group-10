@@ -21,7 +21,7 @@ Db::~Db() {
 
 // Return all flights
 crow::json::wvalue Db::getAllFlights() {
-    crow::json::wvalue flights;
+    crow::json::wvalue flights = crow::json::wvalue::list();
     sqlite3_stmt* stmt;
 
     const char* sql = R"(
@@ -32,6 +32,7 @@ crow::json::wvalue Db::getAllFlights() {
         f.departureTime,
 
         p.model AS planeModel,
+        p.speed AS planeSpeed,
 
         al.name AS airlineName,
         al.logoPath AS airlineLogo,
@@ -69,32 +70,31 @@ crow::json::wvalue Db::getAllFlights() {
         flight["departureTime"] = (const char*)sqlite3_column_text(stmt, 3);
 
         flight["plane"] = (const char*)sqlite3_column_text(stmt, 4);
+        flight["planeSpeed"] = sqlite3_column_int(stmt, 5);
 
-        // the airliens
         flight["airline"]["name"] =
-            (const char*)sqlite3_column_text(stmt, 5);
-        flight["airline"]["logoPath"] =
             (const char*)sqlite3_column_text(stmt, 6);
-
-        // the original airport
-        flight["origin"]["code"] =
+        flight["airline"]["logoPath"] =
             (const char*)sqlite3_column_text(stmt, 7);
-        flight["origin"]["city"] =
-            (const char*)sqlite3_column_text(stmt, 9);
-        flight["origin"]["latitude"] =
-            sqlite3_column_double(stmt, 11);
-        flight["origin"]["longitude"] =
-            sqlite3_column_double(stmt, 12);
 
-        // the destination airport
-        flight["destination"]["code"] =
+        flight["origin"]["code"] =
             (const char*)sqlite3_column_text(stmt, 8);
-        flight["destination"]["city"] =
+        flight["destination"]["code"] =
+            (const char*)sqlite3_column_text(stmt, 9);
+
+        flight["origin"]["city"] =
             (const char*)sqlite3_column_text(stmt, 10);
-        flight["destination"]["latitude"] =
+        flight["destination"]["city"] =
+            (const char*)sqlite3_column_text(stmt, 11);
+
+        flight["origin"]["latitude"] =
+            sqlite3_column_double(stmt, 12);
+        flight["origin"]["longitude"] =
             sqlite3_column_double(stmt, 13);
-        flight["destination"]["longitude"] =
+        flight["destination"]["latitude"] =
             sqlite3_column_double(stmt, 14);
+        flight["destination"]["longitude"] =
+            sqlite3_column_double(stmt, 15);
 
         i++;
     }

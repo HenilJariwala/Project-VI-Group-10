@@ -1,5 +1,7 @@
 #include "crow_all.h"
 #include "db.h"
+#include "geo.h"
+#include "timeutil.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -12,6 +14,10 @@ struct FlightItem {
     std::string airlineName;
     std::string airlineLogoPath;
     std::string plane;
+    int planeSpeed =0;
+    std::string arrivalTime;
+    double distanceKm =0.0;
+    int durationMinutes = 0;
     std::string gate;
     int passengers;
     std::string departureTime;
@@ -51,6 +57,7 @@ std::vector<FlightItem> jsonToFlights(const crow::json::rvalue& flightsJson) {
         item.airlineName   = f["airline"]["name"].s();
         item.airlineLogoPath = f["airline"]["logoPath"].s();
         item.plane         = f["plane"].s();
+        item.planeSpeed = f["planeSpeed"].i();
         item.gate          = f["gate"].s();
         item.passengers    = f["passengers"].i();
         item.departureTime = f["departureTime"].s();
@@ -217,6 +224,32 @@ int main() {
             j["destination"]["code"] = f.destination.code;
             j["destination"]["latitude"] = f.destination.latitude;
             j["destination"]["longitude"] = f.destination.longitude;
+
+
+            f.distanceKm = geo::haversineKm(
+                f.origin.latitude, f.origin.longitude,
+                f.destination.latitude, f.destination.longitude
+            );
+            f.durationMinutes = geo::durationMinutes(f.distanceKm, f.planeSpeed);
+
+            std::chrono::system_clock::time_point depTp;
+            if (timeutil::parseIso8601Utc(f.departureTime, depTp)) {
+                auto arrTp = depTp + std::chrono::minutes(f.durationMinutes);
+                f.arrivalTime = timeutil::formatIso8601Utc(arrTp);
+            } else {
+                f.arrivalTime = "";
+            }
+
+            int h = f.durationMinutes / 60;
+            int m = f.durationMinutes % 60;
+
+            std::string durationText = std::to_string(h) + "h " + std::to_string(m) + "m";
+            
+            j["distanceKm"] = f.distanceKm;
+            j["durationMinutes"] = f.durationMinutes;
+            j["durationText"] = durationText;
+            j["arrivalTime"] = f.arrivalTime;
+
 
             flightsList.push_back(std::move(j));
         }

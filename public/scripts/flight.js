@@ -58,6 +58,20 @@ function renderDropdown(flights) {
   dropdown.style.display = flights.length ? "block" : "none";
 }
 
+function formatDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+
 // Render flight cards 
 function renderFlights(flights) {
   const container = document.getElementById("flightList");
@@ -97,9 +111,11 @@ function renderFlights(flights) {
         </div>
 
         <div class="meta">
-          ${new Date(f.departureTime).toLocaleString()} |
-          Gate ${f.gate} |
-          ${f.passengers} passengers
+          Take off: ${formatDateTime(f.departureTime)} |
+          Gate: ${f.gate} |
+          Passengers: ${f.passengers} |
+          Flight time: ${f.durationText ?? formatDuration(f.durationMinutes)} |
+          Arriving at: ${formatDateTime(f.arrivalTime)}
         </div>
 
         <div class="status ${f.status.class}" data-flight-id="${f.flightID}">
