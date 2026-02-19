@@ -537,7 +537,24 @@ int main() {
         }
     });
 
+    // OPTIONS /api/flights
+    CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::OPTIONS)
+    ([]{
+        std::cout << "\nOPTIONS /api/flights iS HIT \n" << std::endl;
+        crow::response res;
+        res.code = 204; 
+        res.set_header("Allow", "GET,POST,OPTIONS");
+        return res;
+    });
 
+    // OPTIONS /api/flights/<id>
+    CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::OPTIONS)
+    ([](int){
+        crow::response res;
+        res.code = 204; 
+        res.set_header("Allow", "GET,PUT,PATCH,DELETE,OPTIONS");
+        return res;
+    });
 
     //run
     app.port(18080).multithreaded().run();

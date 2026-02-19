@@ -23,8 +23,16 @@
   <main class="content">
     <div class="card">
       <h2>API Info</h2>
-      <p class="hint">Placeholder page. Later this will call OPTIONS /flights and display supported routes.</p>
+      <p class="hint">This page calls OPTIONS to show supported methods.</p>
+
+      <h3>/api/flights</h3>
+      <pre id="outFlights" class="hint">Loading...</pre>
+
+      <h3>/api/flights/{id}</h3>
+      <pre id="outFlightId" class="hint">Loading...</pre>
     </div>
   </main>
+
+  <script src="/scripts/options.js"></script>
 </body>
 </html>
