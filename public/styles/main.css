@@ -384,3 +384,27 @@ button { width: auto; cursor: pointer; }
   color: #b91c1c;
   font-weight: 600;
 }
+
+.update-mode {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.update-mode legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+.update-mode label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+
+.update-mode input[type="radio"] {
+  margin: 0;
+}

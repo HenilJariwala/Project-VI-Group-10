@@ -290,31 +290,33 @@ int main() {
         return serveFile("/app/public/scripts/" + file, "application/javascript; charset=utf-8");
     });
 
-    // GET /api/planes
     CROW_ROUTE(app, "/api/planes").methods(crow::HTTPMethod::GET)
     ([&db]{
         crow::json::wvalue out;
         out["planes"] = db.getAllPlanes();
-        return crow::response{200, out};
+        crow::response res{200, out.dump()};
+        res.set_header("Content-Type", "application/json");
+        return res;
     });
 
-    // GET /api/airports
     CROW_ROUTE(app, "/api/airports").methods(crow::HTTPMethod::GET)
     ([&db]{
         crow::json::wvalue out;
         out["airports"] = db.getAllAirports();
-        return crow::response{200, out};
+        crow::response res{200, out.dump()};
+        res.set_header("Content-Type", "application/json");
+        return res;
     });
 
-    // GET /api/airlines
     CROW_ROUTE(app, "/api/airlines").methods(crow::HTTPMethod::GET)
     ([&db]{
         crow::json::wvalue out;
         out["airlines"] = db.getAllAirlines();
-        return crow::response{200, out};
+        crow::response res{200, out.dump()};
+        res.set_header("Content-Type", "application/json");
+        return res;
     });
-
-
+    
     // POST /api/flights
     CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::POST)
     ([&db](const crow::request& req){

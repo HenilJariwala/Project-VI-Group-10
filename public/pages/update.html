@@ -24,7 +24,8 @@
     <div class="card">
       <h2>Update Flight</h2>
       <p class="hint">
-        Select a flight, edit the fields, and save using <code>PUT /api/flights/{id}</code>.
+        Select a flight, edit the fields, then choose whether to update the entire flight (PUT)
+        or only the changed fields (PATCH).
       </p>
 
       <div class="row">
@@ -35,7 +36,19 @@
       </div>
 
       <hr class="divider" />
+      <fieldset class="update-mode">
+        <legend>Update Mode</legend>
 
+        <label>
+          <input type="radio" name="updateMode" value="put" checked />
+          Update entire flight (PUT)
+        </label>
+
+        <label>
+          <input type="radio" name="updateMode" value="patch" />
+          Update only changed fields (PATCH)
+        </label>
+      </fieldset>
       <form id="updateFlightForm">
         <label>Plane
           <select id="planeID" required></select>

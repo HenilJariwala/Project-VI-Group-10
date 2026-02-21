@@ -132,16 +132,6 @@ function renderFlights(flights) {
   });
 }
 
-// Updating plane progress & status every 5 seconds
-// Now just re-fetches from server instead of recalculating
-function updateFlightProgressAndStatus() {
-  if (filteredFlights.length > 0) {
-    fetchFlights(true);
-  }
-}
-
-setInterval(updateFlightProgressAndStatus, 5000);
-
 // --- Load weather ---
 function loadWeather(lat, lon, elementId) {
   fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
