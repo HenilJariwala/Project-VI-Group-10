@@ -150,7 +150,185 @@ crow::json::wvalue Db::getAllFlights() {
     return flights;
 }
 
-// Returns all Plane rows as a Crow JSON list of objects.
+int Db::getFlightsCount(const std::string& search,
+                        const std::string& date) {
+    sqlite3_stmt* stmt = nullptr;
+
+    std::string sql = R"(
+        SELECT COUNT(*)
+        FROM Flight f
+        JOIN Plane p   ON f.planeID = p.planeID
+        JOIN Airline al ON f.airlineID = al.airlineID
+        JOIN Airport oa ON f.originAirportID = oa.airportID
+        JOIN Airport da ON f.destinationAirportID = da.airportID
+        JOIN Cities oc  ON oa.cityID = oc.cityID
+        JOIN Cities dc  ON da.cityID = dc.cityID
+        WHERE 1=1
+    )";
+
+    if (!search.empty()) {
+        sql += R"(
+            AND (
+                LOWER(al.name) LIKE LOWER(?)
+                OR LOWER(oc.name) LIKE LOWER(?)
+                OR LOWER(dc.name) LIKE LOWER(?)
+                OR LOWER(oa.code) LIKE LOWER(?)
+                OR LOWER(da.code) LIKE LOWER(?)
+                OR LOWER(f.gate) LIKE LOWER(?)
+                OR LOWER(p.model) LIKE LOWER(?)
+            )
+        )";
+    }
+
+    if (!date.empty()) {
+        sql += " AND f.departureTime BETWEEN datetime(?) AND datetime(?, '+1 day')";
+    }
+
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare getFlightsCount");
+    }
+
+    int bindIndex = 1;
+
+    if (!search.empty()) {
+        std::string pattern = "%" + search + "%";
+        for (int i = 0; i < 7; ++i) {
+            sqlite3_bind_text(stmt, bindIndex++, pattern.c_str(), -1, SQLITE_TRANSIENT);
+        }
+    }
+
+    if (!date.empty()) {
+        sqlite3_bind_text(stmt, bindIndex++, date.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, bindIndex++, date.c_str(), -1, SQLITE_TRANSIENT);
+    }
+
+    int count = 0;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        count = sqlite3_column_int(stmt, 0);
+    }
+
+    sqlite3_finalize(stmt);
+    return count;
+}
+
+crow::json::wvalue Db::getFlightsPage(int limit, int offset,
+                                      const std::string& sort,
+                                      const std::string& search,
+                                      const std::string& date) {
+    crow::json::wvalue flights = crow::json::wvalue::list();
+    sqlite3_stmt* stmt = nullptr;
+
+    std::string orderBy = "f.departureTime";
+    if (sort == "gate") orderBy = "f.gate";
+
+    std::string sql = R"(
+        SELECT
+        f.flightID,
+        f.gate,
+        f.passengerCount,
+        f.departureTime,
+
+        p.model,
+        p.speed,
+
+        al.name,
+        al.logoPath,
+
+        oa.code,
+        da.code,
+
+        oc.name,
+        dc.name,
+
+        oc.latitude,
+        oc.longitude,
+        dc.latitude,
+        dc.longitude
+
+        FROM Flight f
+        JOIN Plane p   ON f.planeID = p.planeID
+        JOIN Airline al ON f.airlineID = al.airlineID
+        JOIN Airport oa ON f.originAirportID = oa.airportID
+        JOIN Airport da ON f.destinationAirportID = da.airportID
+        JOIN Cities oc  ON oa.cityID = oc.cityID
+        JOIN Cities dc  ON da.cityID = dc.cityID
+        WHERE 1=1
+    )";
+
+    if (!search.empty()) {
+        sql += R"(
+            AND (
+                LOWER(al.name) LIKE LOWER(?)
+                OR LOWER(oc.name) LIKE LOWER(?)
+                OR LOWER(dc.name) LIKE LOWER(?)
+                OR LOWER(oa.code) LIKE LOWER(?)
+                OR LOWER(da.code) LIKE LOWER(?)
+                OR LOWER(f.gate) LIKE LOWER(?)
+                OR LOWER(p.model) LIKE LOWER(?)
+            )
+        )";
+    }
+
+    if (!date.empty()) {
+        sql += " AND f.departureTime BETWEEN datetime(?) AND datetime(?, '+1 day')";
+    }
+
+    sql += " ORDER BY " + orderBy + " LIMIT ? OFFSET ?;";
+
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare getFlightsPage");
+    }
+
+    int bindIndex = 1;
+
+    if (!search.empty()) {
+        std::string pattern = "%" + search + "%";
+        for (int i = 0; i < 7; ++i) {
+            sqlite3_bind_text(stmt, bindIndex++, pattern.c_str(), -1, SQLITE_TRANSIENT);
+        }
+    }
+
+    if (!date.empty()) {
+        sqlite3_bind_text(stmt, bindIndex++, date.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, bindIndex++, date.c_str(), -1, SQLITE_TRANSIENT);
+    }
+
+    sqlite3_bind_int(stmt, bindIndex++, limit);
+    sqlite3_bind_int(stmt, bindIndex++, offset);
+
+    int i = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        auto& flight = flights[i];
+
+        flight["flightID"] = sqlite3_column_int(stmt, 0);
+        flight["gate"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        flight["passengers"] = sqlite3_column_int(stmt, 2);
+        flight["departureTime"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+
+        flight["plane"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        flight["planeSpeed"] = sqlite3_column_int(stmt, 5);
+
+        flight["airline"]["name"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+        flight["airline"]["logoPath"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
+
+        flight["origin"]["code"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
+        flight["destination"]["code"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 9));
+
+        flight["origin"]["city"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
+        flight["destination"]["city"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 11));
+
+        flight["origin"]["latitude"] = sqlite3_column_double(stmt, 12);
+        flight["origin"]["longitude"] = sqlite3_column_double(stmt, 13);
+        flight["destination"]["latitude"] = sqlite3_column_double(stmt, 14);
+        flight["destination"]["longitude"] = sqlite3_column_double(stmt, 15);
+
+        i++;
+    }
+
+    sqlite3_finalize(stmt);
+    return flights;
+}
+
 crow::json::wvalue Db::getAllPlanes() {
     const char* sql = "SELECT planeID, model, speed, maxSeats FROM Plane ORDER BY model ASC;";
     sqlite3_stmt* stmt = nullptr;
@@ -205,7 +383,7 @@ crow::json::wvalue Db::getAllAirports() {
     return arr;
 }
 
-//return the airliens
+// Return the airlines
 crow::json::wvalue Db::getAllAirlines() {
     const char* sql =
         "SELECT airlineID, name, logoPath "
