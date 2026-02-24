@@ -18,6 +18,16 @@ public:
     crow::json::wvalue getAllAirports();
     crow::json::wvalue getAllAirlines();
 
+    // Pagination (forced 100 per page happens in main.cpp)
+    // sort: "departure" or "gate" (anything else defaults to departure)
+    crow::json::wvalue getFlightsPage(int limit, int offset,
+                                  const std::string& sort,
+                                  const std::string& search,
+                                  const std::string& date);
+
+    int getFlightsCount(const std::string& search,
+                    const std::string& date);
+
     // CRUD
     int createFlight(int planeID, int airlineID,
                      int originAirportID, int destinationAirportID,

@@ -327,6 +327,43 @@ button { width: auto; cursor: pointer; }
   background: #f1f5f9;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+.page-numbers {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.page-btn {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  background: white;
+  cursor: pointer;
+}
+
+.page-btn.active {
+  font-weight: bold;
+  border-color: #333;
+}
+
+.dots {
+  padding: 0 6px;
+  color: #666;
+}
+
+.page-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
 
 /* Simple utility styles used by Update/Delete pages */
 .row {
