@@ -8,3 +8,6 @@ runtime_db/
 *.db
 *.db-journal
 flights.db
+
+
+doxygen/
