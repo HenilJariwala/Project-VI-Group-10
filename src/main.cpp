@@ -576,10 +576,10 @@ int main() {
     // OPTIONS /api/flights
     CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::OPTIONS)
     ([]{
-        std::cout << "\nOPTIONS /api/flights iS HIT \n" << std::endl;
+        //std::cout << "\nOPTIONS /api/flights iS HIT \n" << std::endl;
         crow::response res;
         res.code = 204; 
-        res.set_header("Allow", "GET,POST,OPTIONS");
+        res.set_header("Allow", "GET,POST");
         return res;
     });
 
@@ -588,7 +588,7 @@ int main() {
     ([](int){
         crow::response res;
         res.code = 204; 
-        res.set_header("Allow", "GET,PUT,PATCH,DELETE,OPTIONS");
+        res.set_header("Allow", "GET,PUT,PATCH,DELETE");
         return res;
     });
 

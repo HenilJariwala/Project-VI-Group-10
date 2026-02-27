@@ -1,7 +1,7 @@
 /* Delete Flight page script
  * Uses:
- *  - GET    /api/flights       (for the selector list)
- *  - DELETE /api/flights/{id}  (delete)
+ *  - GET    /api/flights?page=N   (selector list, paginated)
+ *  - DELETE /api/flights/{id}     (delete)
  */
 
 const $ = (id) => document.getElementById(id);
@@ -26,6 +26,7 @@ async function fetchJson(url, opts) {
   const ct = res.headers.get("content-type") || "";
   const isJson = ct.includes("application/json");
   const body = isJson ? await res.json() : await res.text();
+
   if (!res.ok) {
     const err = typeof body === "string" ? body : (body?.message || JSON.stringify(body));
     throw new Error(err || `HTTP ${res.status}`);
@@ -33,12 +34,33 @@ async function fetchJson(url, opts) {
   return body;
 }
 
+// Your backend uses page-based pagination with fixed size=100.
+// We fetch page=1..totalPages and merge.
+async function fetchAllFlightsPaged() {
+  const all = [];
+
+  const first = await fetchJson("/api/flights?page=1");
+  const firstFlights = first.flights || [];
+  all.push(...firstFlights);
+
+  const totalPages = Number(first.totalPages) || 1;
+
+  for (let p = 2; p <= totalPages; p++) {
+    const data = await fetchJson(`/api/flights?page=${p}`);
+    const flights = data.flights || [];
+    all.push(...flights);
+  }
+
+  return all;
+}
+
 async function loadFlightList(selectFlightId = null) {
   flightSelect.innerHTML = "";
   setDetails("");
 
-  const data = await fetchJson("/api/flights");
-  const flights = data.flights || [];
+  setMsg("Loading flights...");
+
+  const flights = await fetchAllFlightsPaged();
 
   if (!flights.length) {
     const opt = document.createElement("option");
@@ -47,8 +69,12 @@ async function loadFlightList(selectFlightId = null) {
     flightSelect.appendChild(opt);
     flightSelect.disabled = true;
     deleteBtn.disabled = true;
+    setMsg("");
     return;
   }
+
+  // Sort by flightID ascending
+  flights.sort((a, b) => Number(a.flightID) - Number(b.flightID));
 
   flightSelect.disabled = false;
   deleteBtn.disabled = false;
@@ -56,17 +82,33 @@ async function loadFlightList(selectFlightId = null) {
   flights.forEach((f) => {
     const opt = document.createElement("option");
     opt.value = f.flightID;
+
     const when = (f.departureTime || "").replace("T", " ").slice(0, 16);
-    opt.textContent = `#${f.flightID} • ${f.airline} • ${f.origin.code} → ${f.destination.code} • ${when}`;
-    opt.dataset.airline = f.airline;
-    opt.dataset.origin = f.origin.code;
-    opt.dataset.dest = f.destination.code;
+    const airlineName = f.airline?.name ?? "Unknown Airline";
+    const o = f.origin?.code ?? "???";
+    const d = f.destination?.code ?? "???";
+
+    opt.textContent = `#${f.flightID} • ${airlineName} • ${o} → ${d} • ${when}`;
+
+    opt.dataset.airline = airlineName;
+    opt.dataset.origin = o;
+    opt.dataset.dest = d;
     opt.dataset.when = when;
+
     flightSelect.appendChild(opt);
   });
 
-  if (selectFlightId) flightSelect.value = String(selectFlightId);
+  if (selectFlightId) {
+    flightSelect.value = String(selectFlightId);
+  }
+
+  // If selected ID not present, fall back to first
+  if (!flightSelect.value) {
+    flightSelect.selectedIndex = 0;
+  }
+
   updateDetails();
+  setMsg("");
 }
 
 function updateDetails() {
@@ -75,7 +117,9 @@ function updateDetails() {
     setDetails("");
     return;
   }
-  setDetails(`Selected: ${opt.dataset.airline} • ${opt.dataset.origin} → ${opt.dataset.dest} • ${opt.dataset.when}`);
+  setDetails(
+    `Selected: ${opt.dataset.airline} • ${opt.dataset.origin} → ${opt.dataset.dest} • ${opt.dataset.when}`
+  );
 }
 
 reloadBtn.addEventListener("click", async () => {

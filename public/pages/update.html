@@ -24,8 +24,8 @@
     <div class="card">
       <h2>Update Flight</h2>
       <p class="hint">
-        Select a flight, edit the fields, then choose whether to update the entire flight (PUT)
-        or only the changed fields (PATCH).
+        Check which fields you want to update. If all fields are checked, the update uses PUT.
+        Otherwise it uses PATCH with only the selected fields.
       </p>
 
       <div class="row">
@@ -35,48 +35,69 @@
         <button id="reloadBtn" type="button" class="btn btn-secondary">Reload List</button>
       </div>
 
+      <div class="button-row" style="margin-top: 10px;">
+        <button id="checkAllBtn" type="button" class="btn btn-secondary">Check All</button>
+        <button id="uncheckAllBtn" type="button" class="btn btn-secondary">Uncheck All</button>
+      </div>
+
       <hr class="divider" />
-      <fieldset class="update-mode">
-        <legend>Update Mode</legend>
 
-        <label>
-          <input type="radio" name="updateMode" value="put" checked />
-          Update entire flight (PUT)
-        </label>
-
-        <label>
-          <input type="radio" name="updateMode" value="patch" />
-          Update only changed fields (PATCH)
-        </label>
-      </fieldset>
       <form id="updateFlightForm">
-        <label>Plane
+        <div class="row">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="chk_planeID" checked />
+            Plane
+          </label>
           <select id="planeID" required></select>
-        </label>
+        </div>
 
-        <label>Origin Airport
+        <div class="row">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="chk_originAirportID" checked />
+            Origin Airport
+          </label>
           <select id="originAirportID" required></select>
-        </label>
+        </div>
 
-        <label>Destination Airport
+        <div class="row">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="chk_destinationAirportID" checked />
+            Destination Airport
+          </label>
           <select id="destinationAirportID" required></select>
-        </label>
+        </div>
 
-        <label>Airline
+        <div class="row">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="chk_airlineID" checked />
+            Airline
+          </label>
           <select id="airlineID" required></select>
-        </label>
+        </div>
 
-        <label>Gate
+        <div class="row">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="chk_gate" checked />
+            Gate
+          </label>
           <input id="gate" type="text" required />
-        </label>
+        </div>
 
-        <label>Passengers
+        <div class="row">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="chk_passengerCount" checked />
+            Passengers
+          </label>
           <input id="passengerCount" type="number" min="0" required />
-        </label>
+        </div>
 
-        <label>Departure Time
+        <div class="row">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="chk_departureTime" checked />
+            Departure Time
+          </label>
           <input id="departureTime" type="datetime-local" required />
-        </label>
+        </div>
 
         <div class="button-row">
           <button type="submit" class="btn">Save Changes</button>
