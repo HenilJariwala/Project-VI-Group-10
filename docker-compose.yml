@@ -6,3 +6,4 @@ services:
       - "18080:18080"
     volumes:
       - ./runtime_db:/app/runtime_db
+      - ./doxygen:/app/doxygen

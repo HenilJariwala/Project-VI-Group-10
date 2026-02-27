@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <ctime>
 #include <iomanip>
+#include <map>
 
 struct FlightItem {
     int flightID;
@@ -100,94 +101,68 @@ int main() {
         std::string search = req.url_params.get("search") ? req.url_params.get("search") : "";
         std::string sort   = req.url_params.get("sort") ? req.url_params.get("sort") : "status";
         std::string dateStr = req.url_params.get("date") ? req.url_params.get("date") : "";
+        // normalize datetime-local format (YYYY-MM-DDTHH:MM -> YYYY-MM-DD HH:MM)
+        if (!dateStr.empty()) {
+            std::replace(dateStr.begin(), dateStr.end(), 'T', ' ');
+        }
 
-        auto flightsWvalue = db.getAllFlights();
+        // normalize sort (avoid weird values)
+        if (sort != "departure" && sort != "gate" && sort != "status")
+            sort = "status";
+
+        // Pagination (forced 100 per page)
+        int page = 1;
+        int size = 100;
+
+        if (req.url_params.get("page"))
+            page = std::max(1, std::atoi(req.url_params.get("page")));
+
+        int offset = (page - 1) * size;
+
+        // Pull only 100 rows from DB (sorted by departure/gate in SQL)
+       auto flightsWvalue = db.getFlightsPage(size, offset, sort, search, dateStr);
+
+        // Convert to rvalue -> vector<FlightItem>
         std::string jsonStr = flightsWvalue.dump();
         auto flightsRvalue = crow::json::load(jsonStr);
         auto flights = jsonToFlights(flightsRvalue);
 
         // Search filter 
-        if (!search.empty()) {
-            std::string lowerSearch = search;
-            std::transform(lowerSearch.begin(), lowerSearch.end(), lowerSearch.begin(), ::tolower);
-
-            flights.erase(
-                std::remove_if(flights.begin(), flights.end(), [&](const FlightItem& f) {
-                    auto check = [&](const std::string& s) {
-                        std::string tmp = s;
-                        std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::tolower);
-                        return tmp.find(lowerSearch) == std::string::npos;
-                    };
-                    return check(f.airlineName) && check(f.origin.city) && check(f.origin.code) &&
-                        check(f.destination.city) && check(f.destination.code) &&
-                        check(f.gate) && check(f.plane);
-                }),
-                flights.end()
-            );
-        }
-
-        // Date filter ±24 hours 
-        if (!dateStr.empty()) {
-            std::tm tm = {};
-            std::istringstream ss(dateStr);
-            ss >> std::get_time(&tm, "%Y-%m-%d");
-            auto selectedTime = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-
-            flights.erase(
-                std::remove_if(flights.begin(), flights.end(), [&](const FlightItem& f) {
-                    std::tm depTm = {};
-                    std::istringstream ds(f.departureTime);
-                    ds >> std::get_time(&depTm, "%Y-%m-%dT%H:%M:%S");
-                    auto depTime = std::chrono::system_clock::from_time_t(std::mktime(&depTm));
-                    auto diff = std::chrono::duration_cast<std::chrono::hours>(depTime - selectedTime).count();
-                    return std::abs(diff) > 24;
-                }),
-                flights.end()
-            );
-        }
+        
 
         // Helper functions for status and progress 
         auto now = std::chrono::system_clock::now();
-        
+
         auto getStatus = [&](const FlightItem& f) -> std::pair<std::string, std::string> {
             std::tm depTm = {};
             std::istringstream ds(f.departureTime);
             ds >> std::get_time(&depTm, "%Y-%m-%dT%H:%M:%S");
             auto dep = std::chrono::system_clock::from_time_t(std::mktime(&depTm));
             auto diff = std::chrono::duration_cast<std::chrono::minutes>(dep - now).count();
-            
+
             if (diff < 0) return {"departed", "DEPARTED"};
             if (diff < 30) return {"boarding", "BOARDING"};
             return {"ontime", "ON TIME"};
         };
-        
+
         auto getProgress = [&](const FlightItem& f) -> double {
             std::tm depTm = {};
             std::istringstream ds(f.departureTime);
             ds >> std::get_time(&depTm, "%Y-%m-%dT%H:%M:%S");
             auto dep = std::chrono::system_clock::from_time_t(std::mktime(&depTm));
-            
+
             // Progress: 0 at (departure - 30 min), 1.0 at departure
             auto boardingStart = dep - std::chrono::minutes(30);
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - boardingStart).count();
             auto total = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::minutes(30)).count();
-            
+
             double progress = static_cast<double>(elapsed) / total;
             return std::min(std::max(progress, 0.0), 1.0);
         };
 
-        // Sorting 
-        std::map<std::string,int> statusOrder = {{"boarding",0}, {"ontime",1}, {"departed",2}};
-
-        if (sort == "departure") {
-            std::sort(flights.begin(), flights.end(), [](const FlightItem& a, const FlightItem& b){
-                return a.departureTime < b.departureTime;
-            });
-        } else if (sort == "gate") {
-            std::sort(flights.begin(), flights.end(), [](const FlightItem& a, const FlightItem& b){
-                return a.gate < b.gate;
-            });
-        } else {
+        // Sorting
+        if (sort != "departure" && sort != "gate") {
+            std::map<std::string,int> statusOrder = {{"boarding",0}, {"ontime",1}, {"departed",2}};
             std::sort(flights.begin(), flights.end(), [&](const FlightItem& a, const FlightItem& b){
                 auto statusA = getStatus(a).first;
                 auto statusB = getStatus(b).first;
@@ -201,6 +176,7 @@ int main() {
 
         for (auto& f : flights) {
             crow::json::wvalue j;
+
             j["flightID"] = f.flightID;
             j["airline"]["name"] = f.airlineName;
             j["airline"]["logoPath"] = f.airlineLogoPath;
@@ -242,17 +218,22 @@ int main() {
 
             int h = f.durationMinutes / 60;
             int m = f.durationMinutes % 60;
-
             std::string durationText = std::to_string(h) + "h " + std::to_string(m) + "m";
-            
+
             j["distanceKm"] = f.distanceKm;
             j["durationMinutes"] = f.durationMinutes;
             j["durationText"] = durationText;
             j["arrivalTime"] = f.arrivalTime;
 
-
             flightsList.push_back(std::move(j));
         }
+
+        // Pagination metadata (NOTE: total is unfiltered for now)
+        int total = db.getFlightsCount(search, dateStr);
+        out["page"] = page;
+        out["size"] = size;
+        out["total"] = total;
+        out["totalPages"] = (total + size - 1) / size;
 
         out["flights"] = std::move(flightsList);
 
@@ -262,7 +243,6 @@ int main() {
         res.body = out.dump();
         return res;
     });
-
     // assets routes (images, gifs)
     CROW_ROUTE(app, "/assets/<string>")([](const std::string& file){
         return serveFile("/app/public/assets/" + file, "image/gif");
@@ -290,31 +270,33 @@ int main() {
         return serveFile("/app/public/scripts/" + file, "application/javascript; charset=utf-8");
     });
 
-    // GET /api/planes
     CROW_ROUTE(app, "/api/planes").methods(crow::HTTPMethod::GET)
     ([&db]{
         crow::json::wvalue out;
         out["planes"] = db.getAllPlanes();
-        return crow::response{200, out};
+        crow::response res{200, out.dump()};
+        res.set_header("Content-Type", "application/json");
+        return res;
     });
 
-    // GET /api/airports
     CROW_ROUTE(app, "/api/airports").methods(crow::HTTPMethod::GET)
     ([&db]{
         crow::json::wvalue out;
         out["airports"] = db.getAllAirports();
-        return crow::response{200, out};
+        crow::response res{200, out.dump()};
+        res.set_header("Content-Type", "application/json");
+        return res;
     });
 
-    // GET /api/airlines
     CROW_ROUTE(app, "/api/airlines").methods(crow::HTTPMethod::GET)
     ([&db]{
         crow::json::wvalue out;
         out["airlines"] = db.getAllAirlines();
-        return crow::response{200, out};
+        crow::response res{200, out.dump()};
+        res.set_header("Content-Type", "application/json");
+        return res;
     });
-
-
+    
     // POST /api/flights
     CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::POST)
     ([&db](const crow::request& req){

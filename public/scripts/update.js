@@ -16,6 +16,10 @@ const departureTime = $("departureTime");
 
 let lastLoadedFlight = null;
 
+function getUpdateMode() {
+  return document.querySelector('input[name="updateMode"]:checked')?.value || "put";
+}
+
 function setMsg(text, isError = false) {
   msg.textContent = text || "";
   msg.classList.toggle("error", !!isError);
@@ -34,6 +38,27 @@ async function fetchJson(url, opts) {
 
   return body;
 }
+
+function updateRequiredFields() {
+  const mode = getUpdateMode();
+  const required = mode === "put";
+
+  [
+    planeID,
+    originAirportID,
+    destinationAirportID,
+    airlineID,
+    gate,
+    passengerCount,
+    departureTime
+  ].forEach(el => {
+    el.required = required;
+  });
+}
+
+document.querySelectorAll('input[name="updateMode"]').forEach(radio => {
+  radio.addEventListener("change", updateRequiredFields);
+});
 
 // Convert ISO -> datetime-local in *local time*
 function isoToLocalDatetimeInput(iso) {
@@ -69,7 +94,6 @@ async function loadPlanes() {
   planeID.innerHTML = "";
   const data = await fetchJson("/api/planes");
   const planes = data.planes || [];
-
   planes.forEach((p) => {
     const opt = document.createElement("option");
     opt.value = p.planeID;
@@ -156,15 +180,26 @@ async function loadFlightIntoForm(flightIDValue) {
   const f = await fetchJson(`/api/flights/${flightIDValue}`);
   lastLoadedFlight = f;
 
-  planeID.value = String(f.planeID);
-  originAirportID.value = String(f.originAirportID);
-  destinationAirportID.value = String(f.destinationAirportID);
-  airlineID.value = String(f.airlineID);
+  function setSelect(el, val) {
+    const strVal = String(val);
+    const match = [...el.options].find(o => o.value === strVal);
+    if (match) {
+      el.value = strVal;
+    } else {
+      console.warn(`No option found in #${el.id} for value: ${strVal}`, [...el.options].map(o => o.value));
+    }
+  }
+
+  setSelect(planeID, f.planeID);
+  setSelect(originAirportID, f.originAirportID);
+  setSelect(destinationAirportID, f.destinationAirportID);
+  setSelect(airlineID, f.airlineID);
 
   gate.value = f.gate || "";
-  passengerCount.value = (f.passengerCount ?? "") + "";
+  passengerCount.value = String(f.passengerCount ?? "");
   departureTime.value = isoToLocalDatetimeInput(f.departureTime);
 }
+
 
 function readFormPayload() {
   return {
@@ -176,6 +211,35 @@ function readFormPayload() {
     passengerCount: Number(passengerCount.value),
     departureTime: localDatetimeInputToIso(departureTime.value),
   };
+}
+
+function normalizeValue(key, value) {
+  if (value === null || value === undefined) return value;
+
+  if (key === "departureTime") {
+    return value ? new Date(value).toISOString() : value;
+  }
+
+  if (typeof value === "number") {
+    return Number(value);
+  }
+
+  return value;
+}
+
+function buildPatchPayload(fullPayload, original) {
+  const patch = {};
+
+  Object.keys(fullPayload).forEach((key) => {
+    const newVal = normalizeValue(key, fullPayload[key]);
+    const oldVal = normalizeValue(key, original[key]);
+
+    if (newVal !== oldVal) {
+      patch[key] = fullPayload[key];
+    }
+  });
+
+  return patch;
 }
 
 function validatePayload(payload) {
@@ -206,12 +270,14 @@ function validatePayload(payload) {
 }
 
 async function boot() {
-  // Load reference data first so selects are populated before we set .value
   await Promise.all([loadPlanes(), loadAirports(), loadAirlines()]);
   await loadFlightList();
+  updateRequiredFields();
 
   const first = flightSelect.value;
-  if (first) await loadFlightIntoForm(first);
+  if (first) {
+    await loadFlightIntoForm(first);
+  }
 }
 
 reloadBtn.addEventListener("click", async () => {
@@ -257,23 +323,66 @@ form.addEventListener("submit", async (e) => {
     const id = flightSelect.value;
     if (!id) throw new Error("Choose a flight first.");
 
-    const payload = readFormPayload();
-    validatePayload(payload);
+    const mode = getUpdateMode(); // "put" | "patch"
+    const fullPayload = readFormPayload();
 
     setMsg("Saving...");
 
+    let payload;
+    let method;
+
+    if (mode === "patch") {
+      method = "PATCH";
+
+      payload = buildPatchPayload(fullPayload, lastLoadedFlight);
+
+      if (Object.keys(payload).length === 0) {
+        throw new Error("No changes detected to patch.");
+      }
+
+      // Validate only the fields being patched
+      if (
+        payload.originAirportID &&
+        payload.destinationAirportID &&
+        payload.originAirportID === payload.destinationAirportID
+      ) {
+        throw new Error("Origin and destination must be different.");
+      }
+
+      if ("passengerCount" in payload) {
+        if (!Number.isFinite(payload.passengerCount) || payload.passengerCount < 0) {
+          throw new Error("Passenger count must be 0 or more.");
+        }
+
+        const maxSeats = selectedPlaneMaxSeats();
+        if (maxSeats != null && payload.passengerCount > maxSeats) {
+          throw new Error(`Passenger count cannot exceed max seats (${maxSeats}).`);
+        }
+      }
+
+    } else {
+      // PUT = full update
+      method = "PUT";
+      payload = fullPayload;
+      validatePayload(fullPayload);
+    }
+
     await fetchJson(`/api/flights/${id}`, {
-      method: "PUT",
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
     await loadFlightIntoForm(id);
-    await loadFlightList(id); // keep list text in sync (if airline/time changed)
-    setMsg(`Flight #${id} updated.`);
+    await loadFlightList(id);
+
+    setMsg(
+      `Flight #${id} ${method === "PUT" ? "fully updated" : "patched"} successfully.`
+    );
+
   } catch (e) {
     setMsg(e.message, true);
   }
 });
 
-boot().catch((e) => setMsg(e.message, true));
+boot();

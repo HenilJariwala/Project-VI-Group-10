@@ -1,0 +1,12 @@
+PROJECT_NAME           = "Flight Logger"
+INPUT                  = /app/src
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+GENERATE_HTML          = YES
+HTML_OUTPUT            = doxygen/html
+GENERATE_LATEX         = NO
+QUIET                  = YES
+EXCLUDE                = /app/src/crow_all.h
+EXCLUDE_PATTERNS       = */crow_all.h
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = NO
