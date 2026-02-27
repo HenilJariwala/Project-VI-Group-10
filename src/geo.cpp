@@ -1,3 +1,9 @@
+/**
+ * @file geo.cpp
+ * @brief Implementation of geographic utilities.
+ * @authors Everyone is an author baby this is a team effort
+ */
+
 #include "geo.h"
 #include <algorithm>
 #include <cstdio>

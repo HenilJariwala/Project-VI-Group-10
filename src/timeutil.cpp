@@ -1,3 +1,9 @@
+/**
+ * @file timeutil.cpp
+ * @brief Implementation of time utility functions.
+ * @authors Everyone is an author baby this is a team effort
+ */
+
 #include "timeutil.h"
 #include <ctime>
 #include <iomanip>

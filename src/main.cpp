@@ -1,3 +1,12 @@
+/**
+ * @file main.cpp
+ * @brief Entry point and HTTP route definitions.
+ * @authors Everyone is an author baby this is a team effort
+ *
+ * Initializes the database and configures all API endpoints.
+ */
+
+
 #include "crow_all.h"
 #include "db.h"
 #include "geo.h"
@@ -10,6 +19,12 @@
 #include <iomanip>
 #include <map>
 
+/**
+ * @brief In-memory flight model used to enrich API responses.
+ *
+ * Built from database query results and used to compute
+ * status, distance, duration, and arrival time.
+ */
 struct FlightItem {
     int flightID;
     std::string airlineName;
@@ -31,6 +46,11 @@ struct FlightItem {
     } origin, destination;
 };
 
+/**
+ * @brief Reads an entire file into a string.
+ * @param path File path.
+ * @return File contents, or empty string if open fails.
+ */
 static std::string readFile(const std::string& path) {
     std::ifstream in(path, std::ios::in);
     if (!in) return "";
@@ -39,6 +59,12 @@ static std::string readFile(const std::string& path) {
     return ss.str();
 }
 
+/**
+ * @brief Serves a static file as an HTTP response.
+ * @param path File path on disk.
+ * @param contentType Value for the Content-Type header.
+ * @return 200 response with file contents, or 404 if missing.
+ */
 static crow::response serveFile(const std::string& path, const std::string& contentType) {
     auto body = readFile(path);
     if (body.empty()) return crow::response(404, "Not Found");
@@ -47,6 +73,11 @@ static crow::response serveFile(const std::string& path, const std::string& cont
     return res;
 }
 
+/**
+ * @brief Converts a JSON list of flights into FlightItem objects.
+ * @param flightsJson JSON list returned from the database layer.
+ * @return Vector of FlightItem records.
+ */
 std::vector<FlightItem> jsonToFlights(const crow::json::rvalue& flightsJson) {
     std::vector<FlightItem> result;
 
@@ -78,7 +109,11 @@ std::vector<FlightItem> jsonToFlights(const crow::json::rvalue& flightsJson) {
     return result;
 }
 
-
+/**
+ * @brief Application entry point. DUHHHHHHHH
+ *
+ * Initializes the database, configures API routes, and starts the HTTP server.
+ */
 int main() {
     // init db
     std::filesystem::create_directories("/app/runtime_db");
@@ -88,7 +123,10 @@ int main() {
 
     crow::SimpleApp app;
 
-    // flights is the main page
+    /**
+    * @brief GET /
+    * @brief Redirects to the flights page.
+    */
     CROW_ROUTE(app, "/")([]{
         crow::response res;
         res.code = 302;
@@ -96,6 +134,16 @@ int main() {
         return res;
     });
 
+    /**
+     * @brief GET /api/flights
+     * @brief Returns a paginated flight list with optional filtering and sorting.
+     *
+     * Query params:
+     * - search: optional keyword filter
+     * - sort: departure | gate | status
+     * - date: optional date filter
+     * - page: page number (1-based)
+     */
     CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::GET)
     ([&db](const crow::request& req){
         std::string search = req.url_params.get("search") ? req.url_params.get("search") : "";
@@ -297,7 +345,10 @@ int main() {
         return res;
     });
     
-    // POST /api/flights
+    /**
+     * @brief POST /api/flights
+     * @brief Creates a new flight record.
+     */
     CROW_ROUTE(app, "/api/flights").methods(crow::HTTPMethod::POST)
     ([&db](const crow::request& req){
         auto body = crow::json::load(req.body);
@@ -342,7 +393,10 @@ int main() {
     });
 
 
-    // GET /api/flights/<id>
+    /**
+     * @brief GET /api/flights/{id}
+     * @brief Returns a single flight by ID.
+     */
     CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::GET)
     ([&db](int flightID){
         try {
@@ -361,7 +415,7 @@ int main() {
         }
     });
 
-    // PUT /api/flights/<id>
+    /** @brief PUT /api/flights/{id} @brief Replaces a flight record. */
     CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::PUT)
     ([&db](const crow::request& req, int flightID){
         auto body = crow::json::load(req.body);
@@ -414,7 +468,7 @@ int main() {
         }
     });
 
-    // PATCH /api/flights/<id>
+    /** @brief PATCH /api/flights/{id} @brief Partially updates a flight record. */
     CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::PATCH)
     ([&db](const crow::request& req, int flightID){
         auto body = crow::json::load(req.body);
@@ -498,7 +552,7 @@ int main() {
 
 
 
-    // DELETE /api/flights/<id>
+    /** @brief DELETE /api/flights/{id} @brief Deletes a flight record. */
     CROW_ROUTE(app, "/api/flights/<int>").methods(crow::HTTPMethod::DELETE)
     ([&db](int flightID){
         try {

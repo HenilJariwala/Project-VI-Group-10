@@ -1,3 +1,13 @@
+/**
+ * @file db.cpp
+ * @brief Implementation of the Db class.
+ * @authors Everyone is an author baby this is a team effort
+ *
+ * Contains SQL queries and database logic for flights,
+ * pagination, and CRUD operations.
+ */
+
+
 #include "db.h"
 #include <fstream>
 #include <sstream>
