@@ -8,3 +8,4 @@ runtime_db/
 *.db
 *.db-journal
 flights.db
+/pytest/__pycache__
